@@ -19,7 +19,7 @@ export async function createSession(displayName = 'Guest'): Promise<{
   userId: string;
 }> {
   const token = crypto.randomBytes(32).toString('hex');
-  const user = await prisma.user.create({ data: { name: displayName } });
+  const user = await prisma.user.create({ data: { name: displayName, email: `guest-${Date.now()}@waypoint.local` } });
 
   await prisma.session.create({
     data: {
