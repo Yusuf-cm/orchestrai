@@ -18,7 +18,11 @@ function isWaitingOnUser(step: WorkflowStep): boolean {
   return requiresUserConfirmation(step);
 }
 
-function recalculateReadiness(caseData: CaseData): CaseData {
+/**
+ * Recomputes readiness from the adapter. Called after any change to slots,
+ * requirements, or artifacts so the score never lags behind the checklist.
+ */
+export function recalculateReadiness(caseData: CaseData): CaseData {
   const adapter = getAdapter(caseData.adapterId);
   if (!adapter) return caseData;
   const readiness = adapter.calculateReadiness(caseData);
@@ -43,11 +47,11 @@ export async function runStepHandler(caseData: CaseData): Promise<CaseData> {
   if (!workflow) return caseData;
 
   const step = getWorkflowStep(workflow, caseData.workflow.currentStepId);
-  if (!step?.handler) return caseData;
+  if (!step?.handler) return recalculateReadiness(caseData);
 
   const adapter = getAdapter(caseData.adapterId);
   const handler = adapter?.handlers[step.handler];
-  if (!adapter || !handler) return caseData;
+  if (!adapter || !handler) return recalculateReadiness(caseData);
 
   const result = await handler(caseData, step);
   if (!result.success) {

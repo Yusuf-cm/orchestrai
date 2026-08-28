@@ -2,126 +2,189 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { Compass, Loader2, Sparkles } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, Keyboard } from "lucide-react";
+import { toast } from "sonner";
 import { listCases, startCase } from "@/lib/api";
 import { CaseCard } from "@/components/case/case-card";
+import { VoiceCapture } from "@/components/voice-capture";
+import { SiteHeader } from "@/components/site-header";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
-const SUGGESTIONS = [
-  "I lost my California driver's license",
-  "My knee has been hurting for 3 weeks when I run",
+const EXAMPLES = [
+  { label: "I lost my ID", utterance: "I have lost my national ID and I need a replacement" },
+  { label: "Nimepoteza kitambulisho", utterance: "Nimepoteza kitambulisho changu, nahitaji kingine" },
+  { label: "My knee hurts", utterance: "My knee has been hurting for 3 weeks and I am in Nairobi" },
 ];
 
 export default function HomePage() {
   const router = useRouter();
-  const [utterance, setUtterance] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const queryClient = useQueryClient();
+  const [text, setText] = useState("");
+  const [typing, setTyping] = useState(false);
 
-  const { data: cases = [], refetch } = useQuery({
+  const { data: cases = [], isLoading } = useQuery({
     queryKey: ["cases"],
     queryFn: listCases,
   });
 
-  const handleStart = async (text?: string) => {
-    const q = text || utterance;
-    if (!q.trim()) return;
-    setLoading(true);
-    setError("");
-    try {
-      const newCase = await startCase(q.trim());
-      await refetch();
-      router.push(`/cases/${newCase.id}`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to start case");
-    } finally {
-      setLoading(false);
-    }
+  const create = useMutation({
+    mutationFn: startCase,
+    onSuccess: async (created) => {
+      await queryClient.invalidateQueries({ queryKey: ["cases"] });
+      router.push(`/cases/${created.id}`);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Could not start that case");
+    },
+  });
+
+  const submit = (utterance: string) => {
+    const trimmed = utterance.trim();
+    if (!trimmed) return;
+    setText(trimmed);
+    create.mutate(trimmed);
   };
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white">
-            <Compass className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-900">Waypoint</h1>
-            <p className="text-xs text-slate-500">Navigate institutions with confidence</p>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-dvh pb-16">
+      <SiteHeader />
 
-      <main className="mx-auto max-w-4xl px-4 py-10">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-            What do you need to get done?
-          </h2>
-          <p className="mt-3 text-slate-600">
-            Tell us your goal. We&apos;ll build a case, check requirements, and tell you when you&apos;re ready.
+      <main className="mx-auto max-w-2xl px-4">
+        <section className="pt-10 pb-8 text-center sm:pt-14">
+          <h1 className="font-display text-[2rem] leading-[1.15] text-paper-900 sm:text-[2.75rem]">
+            Know what to bring,
+            <br />
+            <span className="text-forest-700">before you go.</span>
+          </h1>
+          <p className="mx-auto mt-4 max-w-md text-[15px] leading-relaxed text-paper-600">
+            Say what you need done. Waypoint works out the process, the documents, and the office —
+            then tells you when you are actually ready.
           </p>
-        </div>
+        </section>
 
-        <div className="mx-auto mt-8 max-w-2xl">
-          <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-            <textarea
-              value={utterance}
-              onChange={(e) => setUtterance(e.target.value)}
-              placeholder="I lost my ID and need a replacement..."
-              rows={3}
-              className="w-full resize-none rounded-xl border-0 bg-transparent px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleStart();
-                }
-              }}
-            />
-            <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2">
-              <div className="flex flex-wrap gap-2">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => {
-                      setUtterance(s);
-                      handleStart(s);
-                    }}
-                    className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600 hover:bg-indigo-100 hover:text-indigo-700"
-                  >
-                    {s.length > 40 ? s.slice(0, 40) + "…" : s}
-                  </button>
-                ))}
-              </div>
+        <Card className="p-6">
+          {!typing ? (
+            <div className="flex flex-col items-center">
+              <VoiceCapture
+                onTranscript={submit}
+                onError={(message) => toast.error(message)}
+                disabled={create.isPending}
+              />
+              <p className="mt-3 text-center text-[13px] text-paper-500">
+                English or Kiswahili
+              </p>
               <button
                 type="button"
-                onClick={() => handleStart()}
-                disabled={loading || !utterance.trim()}
-                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                onClick={() => setTyping(true)}
+                className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-paper-600 hover:text-forest-700"
               >
-                {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                Start case
+                <Keyboard className="h-3.5 w-3.5" />
+                Type it instead
               </button>
             </div>
-          </div>
-          {error && <p className="mt-2 text-center text-sm text-red-600">{error}</p>}
-        </div>
+          ) : (
+            <div>
+              <label htmlFor="need" className="text-xs font-semibold uppercase tracking-widest text-paper-500">
+                What do you need to get done?
+              </label>
+              <textarea
+                id="need"
+                autoFocus
+                rows={3}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    submit(text);
+                  }
+                }}
+                placeholder="I lost my national ID and need a replacement…"
+                className="mt-2 w-full resize-none rounded-xl border border-paper-200 bg-paper-50 px-4 py-3 text-[15px] text-paper-900 placeholder:text-paper-400 focus:border-forest-400 focus:bg-white focus:outline-none"
+              />
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTyping(false)}
+                  className="text-[13px] font-medium text-paper-500 hover:text-forest-700"
+                >
+                  Use voice
+                </button>
+                <Button
+                  onClick={() => submit(text)}
+                  loading={create.isPending}
+                  disabled={!text.trim()}
+                >
+                  Start
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
 
-        {cases.length > 0 && (
-          <section className="mt-14">
-            <h3 className="text-lg font-semibold text-slate-900">Active cases</h3>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              {cases.map((c) => (
-                <CaseCard key={c.id} caseData={c} />
+          <div className="mt-5 border-t border-paper-200 pt-4">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-paper-400">
+              Try
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {EXAMPLES.map((example) => (
+                <button
+                  key={example.label}
+                  type="button"
+                  disabled={create.isPending}
+                  onClick={() => submit(example.utterance)}
+                  className="rounded-full border border-paper-200 bg-paper-50 px-3 py-1.5 text-[13px] text-paper-700 transition-colors hover:border-forest-300 hover:bg-forest-50 hover:text-forest-800 disabled:opacity-50"
+                >
+                  {example.label}
+                </button>
               ))}
             </div>
-          </section>
-        )}
+          </div>
+        </Card>
+
+        <section className="mt-10">
+          {isLoading ? (
+            <div className="space-y-3">
+              {[0, 1].map((i) => (
+                <div key={i} className="h-28 animate-pulse rounded-card bg-paper-200/60" />
+              ))}
+            </div>
+          ) : cases.length > 0 ? (
+            <>
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-paper-500">
+                Your cases
+              </h2>
+              <div className="space-y-3">
+                {cases.map((c) => (
+                  <CaseCard key={c.id} caseData={c} />
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="rounded-card border border-dashed border-paper-300 px-6 py-10 text-center">
+              <p className="text-sm font-medium text-paper-700">No cases yet</p>
+              <p className="mx-auto mt-1 max-w-xs text-[13px] leading-relaxed text-paper-500">
+                Start with something real — a lost ID, or a pain you have been putting off. Waypoint
+                keeps it until it is done.
+              </p>
+            </div>
+          )}
+        </section>
+
+        <section className="mt-12 grid gap-3 sm:grid-cols-3">
+          {[
+            { title: "Government", body: "Replace a lost national ID through eCitizen and Huduma Centre." },
+            { title: "Health", body: "Find the right level of facility instead of queueing at the wrong one." },
+            { title: "More later", body: "Insurance, education, and utilities plug into the same engine." },
+          ].map((item) => (
+            <div key={item.title} className="rounded-xl border border-paper-200 bg-white p-4">
+              <p className="text-[13px] font-semibold text-paper-900">{item.title}</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-paper-600">{item.body}</p>
+            </div>
+          ))}
+        </section>
       </main>
     </div>
   );

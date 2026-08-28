@@ -6,6 +6,7 @@ import {
   advanceUntilUserInput,
   createInitialCase,
   getCurrentStepInfo,
+  recalculateReadiness,
 } from './workflow/engine';
 import { getCaseById, listCases, saveCase } from './case-store';
 import { getAuditEvents, logAudit } from './audit';
@@ -157,7 +158,7 @@ export async function updateCase(caseId: string, updates: CaseUpdate): Promise<C
     caseData.workflow.slots._user_confirmed = true;
   }
 
-  caseData = await saveCase(caseData);
+  caseData = await saveCase(recalculateReadiness(caseData));
 
   const trigger = updates.confirmStep ? 'user_confirms' : 'auto';
   caseData = await advanceUntilUserInput(caseData, trigger);
@@ -235,7 +236,7 @@ export async function uploadArtifact(
     input: { filename: file.originalname, requirementId: target },
   });
 
-  caseData = await saveCase(caseData);
+  caseData = await saveCase(recalculateReadiness(caseData));
   caseData = await advanceUntilUserInput(caseData);
   return toCaseView(await saveCase(caseData));
 }

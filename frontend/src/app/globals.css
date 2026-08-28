@@ -1,11 +1,118 @@
 @import "tailwindcss";
 
-:root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+/*
+  Waypoint design tokens.
+
+  The palette is deliberately institutional rather than the default AI-product
+  violet: a deep forest green for trust and progress, warm ochre for attention,
+  and paper-toned neutrals so long checklists stay readable on a cheap screen in
+  daylight.
+*/
+@theme {
+  /* Neutrals — warm, not blue-grey, so the interface reads as paper */
+  --color-paper-50: #fbfaf7;
+  --color-paper-100: #f5f3ee;
+  --color-paper-200: #e9e5dc;
+  --color-paper-300: #d7d1c4;
+  --color-paper-400: #a8a093;
+  --color-paper-500: #7c7466;
+  --color-paper-600: #5c554a;
+  --color-paper-700: #403a32;
+  --color-paper-800: #26221d;
+  --color-paper-900: #14120f;
+
+  /* Primary — forest green */
+  --color-forest-50: #edf7f1;
+  --color-forest-100: #d3ebdd;
+  --color-forest-200: #a5d7bc;
+  --color-forest-300: #6fbc95;
+  --color-forest-400: #3f9d72;
+  --color-forest-500: #1f7d55;
+  --color-forest-600: #146043;
+  --color-forest-700: #0f4a34;
+  --color-forest-800: #0b3526;
+  --color-forest-900: #072118;
+
+  /* Accent — ochre, for attention without alarm */
+  --color-ochre-50: #fdf6e9;
+  --color-ochre-100: #f9e7c2;
+  --color-ochre-200: #f2cd85;
+  --color-ochre-300: #e8ae45;
+  --color-ochre-400: #d4901c;
+  --color-ochre-500: #ab7112;
+  --color-ochre-600: #825510;
+
+  /* Alert — reserved for emergencies and failures only */
+  --color-alert-50: #fdf2f1;
+  --color-alert-100: #fbdedb;
+  --color-alert-300: #f09a92;
+  --color-alert-500: #cf3b2c;
+  --color-alert-600: #a82c20;
+  --color-alert-700: #7f2118;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), Georgia, serif;
+
+  --radius-card: 1rem;
+
+  --animate-rise: rise 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-fade: fade 0.25s ease-out;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.5; }
+  70% { transform: scale(1.7); opacity: 0; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background-color: var(--color-paper-50);
+  color: var(--color-paper-900);
+  font-family: var(--font-sans);
+  /* Kenya browses on mobile; avoid horizontal overflow at all costs */
+  overflow-x: hidden;
+}
+
+/* Respect users who ask for less motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus ring that stays visible on both paper and forest surfaces */
+:focus-visible {
+  outline: 2px solid var(--color-forest-400);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background-color: var(--color-forest-200);
+}
+
+/* Thin, unobtrusive scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-paper-300) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-paper-300);
+  border-radius: 999px;
 }
