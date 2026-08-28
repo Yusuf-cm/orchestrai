@@ -1,101 +1,142 @@
-import { Router, Request, Response } from 'express';
-import multer from 'multer';
-import path from 'path';
+import { Router, type Response } from 'express';
 import fs from 'fs';
-import { startCase, updateCase, uploadArtifact } from '../services/case-service';
-import { listCases, getCaseById } from '../services/case-store';
-import { tryAdvance } from '../services/workflow/engine';
-import { saveCase } from '../services/case-store';
+import multer from 'multer';
+import {
+  CaseNotFoundError,
+  InvalidUploadError,
+  UnsupportedRequestError,
+  getCaseView,
+  listCaseViews,
+  startCase,
+  updateCase,
+  uploadArtifact,
+} from '../services/case-service';
+import { getCaseById } from '../services/case-store';
 import { generateClarification } from '../services/orchestrator';
-import { getAuditEvents } from '../services/audit';
+import { requireSession, type AuthedRequest } from '../services/session';
 import { listWorkflows } from '../services/workflow/loader';
 
-const uploadDir = process.env.UPLOAD_DIR || './uploads';
+const uploadDir = process.env.UPLOAD_DIR || './uploads/documents';
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-const upload = multer({ dest: uploadDir });
+const upload = multer({
+  dest: uploadDir,
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+});
+
+function handleError(res: Response, err: unknown): void {
+  if (err instanceof UnsupportedRequestError) {
+    res.status(400).json({ error: err.message, code: 'UNSUPPORTED' });
+    return;
+  }
+  if (err instanceof CaseNotFoundError) {
+    res.status(404).json({ error: err.message, code: 'NOT_FOUND' });
+    return;
+  }
+  if (err instanceof InvalidUploadError) {
+    res.status(400).json({ error: err.message, code: 'INVALID_UPLOAD' });
+    return;
+  }
+  console.error('[api] unhandled error:', err);
+  res.status(500).json({ error: 'Something went wrong on our side.', code: 'INTERNAL' });
+}
 
 export const casesRouter = Router();
 
-casesRouter.post('/start', async (req: Request, res: Response) => {
+casesRouter.use(requireSession);
+
+casesRouter.post('/start', async (req: AuthedRequest, res) => {
   try {
-    const { utterance, userId = 'demo-user' } = req.body;
-    if (!utterance) return res.status(400).json({ error: 'utterance is required' });
-    const caseData = await startCase(utterance, userId);
-    res.status(201).json(caseData);
+    const utterance = String(req.body?.utterance ?? '').trim();
+    if (!utterance) {
+      return res.status(400).json({ error: 'Tell us what you need to get done.', code: 'EMPTY' });
+    }
+    if (utterance.length > 1000) {
+      return res.status(400).json({ error: 'That is too long. A sentence or two is enough.', code: 'TOO_LONG' });
+    }
+    const view = await startCase(utterance, req.userId!);
+    res.status(201).json(view);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to start case' });
+    handleError(res, err);
   }
 });
 
-casesRouter.get('/', async (req: Request, res: Response) => {
+casesRouter.get('/', async (req: AuthedRequest, res) => {
   try {
-    const userId = (req.query.userId as string) || 'demo-user';
-    const status = req.query.status as string | undefined;
-    const cases = await listCases(userId, status);
-    res.json({ cases });
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    res.json({ cases: await listCaseViews(req.userId!, status) });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to list cases' });
+    handleError(res, err);
   }
 });
 
-casesRouter.get('/:id', async (req: Request, res: Response) => {
+casesRouter.get('/:id', async (req: AuthedRequest, res) => {
+  try {
+    const view = await getCaseView(req.params.id, req.userId!);
+    if (!view) return res.status(404).json({ error: 'Case not found', code: 'NOT_FOUND' });
+    res.json(view);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+/** Ownership is checked before any mutation so a case id alone grants nothing. */
+async function assertOwnership(caseId: string, userId: string): Promise<void> {
+  const existing = await getCaseById(caseId);
+  if (!existing || existing.userId !== userId) {
+    throw new CaseNotFoundError('Case not found');
+  }
+}
+
+casesRouter.patch('/:id', async (req: AuthedRequest, res) => {
+  try {
+    await assertOwnership(req.params.id, req.userId!);
+    res.json(await updateCase(req.params.id, req.body ?? {}));
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+casesRouter.post('/:id/documents', upload.single('file'), async (req: AuthedRequest, res) => {
+  try {
+    await assertOwnership(req.params.id, req.userId!);
+    if (!req.file) {
+      return res.status(400).json({ error: 'Attach a file to upload.', code: 'NO_FILE' });
+    }
+    const view = await uploadArtifact(req.params.id, req.file, req.body?.requirementId);
+    res.status(201).json(view);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+casesRouter.post('/:id/chat', async (req: AuthedRequest, res) => {
   try {
     const caseData = await getCaseById(req.params.id);
-    if (!caseData) return res.status(404).json({ error: 'Case not found' });
-    const audit = await getAuditEvents(req.params.id);
-    res.json({ ...caseData, audit });
+    if (!caseData || caseData.userId !== req.userId) {
+      return res.status(404).json({ error: 'Case not found', code: 'NOT_FOUND' });
+    }
+    const message = String(req.body?.message ?? '').trim();
+    if (!message) {
+      return res.status(400).json({ error: 'Ask a question first.', code: 'EMPTY' });
+    }
+    res.json(await generateClarification(caseData, message));
   } catch (err) {
-    res.status(500).json({ error: 'Failed to get case' });
-  }
-});
-
-casesRouter.patch('/:id', async (req: Request, res: Response) => {
-  try {
-    const caseData = await updateCase(req.params.id, req.body);
-    res.json(caseData);
-  } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : 'Update failed' });
-  }
-});
-
-casesRouter.post('/:id/advance', async (req: Request, res: Response) => {
-  try {
-    const caseData = await getCaseById(req.params.id);
-    if (!caseData) return res.status(404).json({ error: 'Case not found' });
-    const result = await tryAdvance(caseData, req.body.action || 'user_confirms');
-    const saved = await saveCase(result.case);
-    res.json({ ...result, case: saved });
-  } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : 'Advance failed' });
-  }
-});
-
-casesRouter.post('/:id/upload', upload.single('file'), async (req: Request, res: Response) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'file is required' });
-    const caseData = await uploadArtifact(req.params.id, req.file, req.body.requirementId);
-    res.status(201).json({ artifact: caseData.artifacts[caseData.artifacts.length - 1], case: caseData });
-  } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : 'Upload failed' });
-  }
-});
-
-casesRouter.post('/:id/chat', async (req: Request, res: Response) => {
-  try {
-    const caseData = await getCaseById(req.params.id);
-    if (!caseData) return res.status(404).json({ error: 'Case not found' });
-    const { message } = req.body;
-    const reply = await generateClarification(caseData, message);
-    res.json({ reply, case: caseData });
-  } catch (err) {
-    res.status(500).json({ error: 'Chat failed' });
+    handleError(res, err);
   }
 });
 
 export const workflowsRouter = Router();
 
 workflowsRouter.get('/', (_req, res) => {
-  res.json({ workflows: listWorkflows().map((w) => ({ id: w.id, title: w.title, domain: w.domain })) });
+  res.json({
+    workflows: listWorkflows().map((w) => ({
+      id: w.id,
+      title: w.title,
+      domain: w.domain,
+      adapter: w.adapter,
+      version: w.version,
+      steps: w.steps.length,
+    })),
+  });
 });

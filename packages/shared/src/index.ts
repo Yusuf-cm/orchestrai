@@ -1,5 +1,11 @@
-// Domain types
-export type Domain = 'government' | 'healthcare' | 'insurance' | 'education' | 'banking' | 'legal' | 'utilities';
+export type Domain =
+  | 'government'
+  | 'healthcare'
+  | 'insurance'
+  | 'education'
+  | 'banking'
+  | 'legal'
+  | 'utilities';
 
 export type ExecutionMode = 'guide' | 'assist' | 'execute' | 'escalate';
 
@@ -15,11 +21,22 @@ export type ReadinessStatus = 'not_ready' | 'almost_ready' | 'ready' | 'complete
 
 export type CasePhase = 'intake' | 'preparation' | 'action' | 'waiting' | 'followup' | 'resolved';
 
-export type DataClassification = 'public' | 'pii' | 'phi' | 'sensitive';
+export type Language = 'en' | 'sw';
 
-export type CareLevel = 'self_care' | 'primary_care' | 'urgent_care' | 'emergency';
+/** Step types the engine implements. Adding one requires engine support. */
+export type StepType =
+  | 'collect_input'
+  | 'ask_question'
+  | 'validate'
+  | 'lookup'
+  | 'document_required'
+  | 'guide_user'
+  | 'assist_user'
+  | 'appointment'
+  | 'payment'
+  | 'human_handoff'
+  | 'completion';
 
-// Intent
 export interface IntentResult {
   classifiedIntent: string;
   confidence: number;
@@ -36,7 +53,6 @@ export interface IntentDefinition {
   workflowId: string;
 }
 
-// Institution
 export interface Institution {
   id: string;
   name: string;
@@ -50,34 +66,14 @@ export interface Service {
   officialUrl?: string;
 }
 
-export interface Location {
-  id: string;
-  name: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  hours?: string;
-  phone?: string;
-}
-
-export interface Fee {
-  label: string;
-  amount: number;
-  currency: string;
-}
-
-// Evidence
 export interface Evidence {
   id: string;
   sourceUrl?: string;
   sourceLabel: string;
   verificationStatus: VerificationStatus;
   lastVerified?: string;
-  excerpt?: string;
 }
 
-// Requirements
 export interface Requirement {
   id: string;
   label: string;
@@ -91,19 +87,16 @@ export interface Requirement {
   acceptableDocuments?: string[];
 }
 
-// Artifacts
 export interface Artifact {
   id: string;
-  type: 'upload' | 'generated_form' | 'receipt' | 'referral_letter' | 'symptom_log';
+  type: 'upload' | 'generated_form' | 'receipt' | 'referral_letter';
   name: string;
   storageRef: string;
-  extractedFields?: Record<string, unknown>;
   validationStatus: 'pending' | 'valid' | 'invalid';
   requirementId?: string;
   uploadedAt: string;
 }
 
-// Appointments
 export interface Appointment {
   id: string;
   providerName: string;
@@ -114,38 +107,10 @@ export interface Appointment {
   notes?: string;
 }
 
-// Tasks & Actions
-export interface Task {
-  id: string;
-  label: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  stepId?: string;
-  dueAt?: string;
-}
-
 export interface Blocker {
   requirementId: string;
   reason: string;
 }
-
-// Workflow definitions
-export type StepType =
-  | 'collect_input'
-  | 'ask_question'
-  | 'validate'
-  | 'lookup'
-  | 'document_required'
-  | 'document_extract'
-  | 'generate_document'
-  | 'guide_user'
-  | 'assist_user'
-  | 'execute_action'
-  | 'appointment'
-  | 'payment'
-  | 'wait'
-  | 'reminder'
-  | 'human_handoff'
-  | 'completion';
 
 export interface WorkflowTransition {
   to: string;
@@ -160,8 +125,6 @@ export interface WorkflowStep {
   description?: string;
   inputs?: string[];
   handler?: string;
-  content?: Record<string, unknown>;
-  requirements_ref?: string;
   transitions: WorkflowTransition[];
 }
 
@@ -172,12 +135,11 @@ export interface WorkflowDefinition {
   adapter: string;
   institution?: string;
   title: string;
-  slots: Array<{ name: string; type: string; required: boolean; enum?: string[] }>;
+  slots: Array<{ name: string; type: string; required: boolean }>;
   steps: WorkflowStep[];
-  completion?: { step: string; actions?: string[] };
+  completion?: { step: string };
 }
 
-// Case
 export interface CaseIntent {
   rawUtterance: string;
   classifiedIntent: string;
@@ -202,14 +164,6 @@ export interface CaseState {
   readinessStatus: ReadinessStatus;
   blockers: Blocker[];
   flags: string[];
-}
-
-export interface StepTransition {
-  from: string;
-  to: string;
-  at: string;
-  trigger: string;
-  actor: 'user' | 'system' | 'ai' | 'human_agent';
 }
 
 export interface AuditEvent {
@@ -238,29 +192,34 @@ export interface CaseData {
   requirements: Requirement[];
   artifacts: Artifact[];
   appointments: Appointment[];
-  tasks: Task[];
   evidence: Evidence[];
   status: CaseStatus;
   createdAt: string;
   updatedAt: string;
 }
 
-// API types
-export interface StartCaseRequest {
-  utterance: string;
-  userId?: string;
-}
-
-export interface AdvanceCaseRequest {
-  action: string;
-  payload?: Record<string, unknown>;
-}
-
-export interface AdvanceCaseResponse {
-  allowed: boolean;
+export interface ExecutionPlan {
+  mode: ExecutionMode;
+  actor: 'user' | 'system' | 'human_agent';
+  autoExecute: boolean;
+  requiresConfirmation: boolean;
   reason?: string;
-  case: CaseData;
-  message?: string;
+}
+
+/** The current step travels with the case so the UI stays workflow-agnostic. */
+export interface CurrentStepView {
+  id: string;
+  type: StepType;
+  mode: ExecutionMode;
+  title: string;
+  description?: string;
+  isTerminal: boolean;
+  execution: ExecutionPlan;
+}
+
+export interface CaseView extends CaseData {
+  currentStep: CurrentStepView | null;
+  audit?: AuditEvent[];
 }
 
 export interface ReadinessResult {
@@ -273,31 +232,30 @@ export interface ReadinessResult {
 
 export interface SafetyResult {
   safe: boolean;
-  careLevel?: CareLevel;
+  careLevel?: string;
   redirectMessage?: string;
   flags: string[];
 }
 
-export interface VoiceSpeakRequest {
-  text: string;
-  caseId?: string;
-}
-
-export interface VoiceSpeakResponse {
-  fallback?: boolean;
-  text?: string;
-  cacheKey?: string;
-}
-
-// Provider (healthcare)
-export interface Provider {
+export interface HudumaCentre {
   id: string;
   name: string;
-  specialty: string;
-  distance: string;
-  acceptingNewPatients: boolean;
-  rating: number;
   address: string;
+  city: string;
+  county: string;
+  hours: string;
   phone: string;
-  inNetwork: boolean;
+  services: string[];
+}
+
+export interface HealthFacility {
+  id: string;
+  name: string;
+  level: string;
+  county: string;
+  address: string;
+  distance: string;
+  shaAccredited: boolean;
+  openNow: boolean;
+  services: string[];
 }

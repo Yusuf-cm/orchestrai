@@ -1,6 +1,7 @@
+import type { AuditEvent } from '@waypoint/shared';
 import { prisma } from '../../db/prisma';
 
-export async function logAudit(params: {
+export interface AuditInput {
   caseId: string;
   actor: 'user' | 'system' | 'ai' | 'human_agent';
   action: string;
@@ -8,7 +9,14 @@ export async function logAudit(params: {
   input?: Record<string, unknown>;
   output?: Record<string, unknown>;
   success?: boolean;
-}) {
+}
+
+/**
+ * Appends an audit event. Failures are surfaced rather than swallowed: an
+ * audit trail that silently loses entries is worse than one that complains,
+ * because the case history is what users and reviewers rely on.
+ */
+export async function logAudit(params: AuditInput): Promise<void> {
   try {
     await prisma.auditEvent.create({
       data: {
@@ -21,22 +29,26 @@ export async function logAudit(params: {
         success: params.success ?? true,
       },
     });
-  } catch {
-    // Case may not be persisted yet — skip silently
+  } catch (err) {
+    console.error(
+      `[audit] failed to record "${params.action}" for case ${params.caseId}:`,
+      err instanceof Error ? err.message : err
+    );
   }
 }
 
-export async function getAuditEvents(caseId: string, limit = 50) {
+export async function getAuditEvents(caseId: string, limit = 100): Promise<AuditEvent[]> {
   const events = await prisma.auditEvent.findMany({
     where: { caseId },
     orderBy: { timestamp: 'desc' },
     take: limit,
   });
+
   return events.map((e) => ({
     id: e.id,
     caseId: e.caseId,
     timestamp: e.timestamp.toISOString(),
-    actor: e.actor as 'user' | 'system' | 'ai' | 'human_agent',
+    actor: e.actor as AuditEvent['actor'],
     action: e.action,
     stepId: e.stepId ?? undefined,
     input: e.input ? JSON.parse(e.input) : undefined,

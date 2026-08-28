@@ -1,15 +1,7 @@
 import type { CaseData } from '@waypoint/shared';
 import { prisma } from '../db/prisma';
 
-function parseJson<T>(value: string, fallback: T): T {
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-export function dbCaseToCaseData(row: {
+type CaseRow = {
   id: string;
   userId: string;
   title: string;
@@ -23,19 +15,33 @@ export function dbCaseToCaseData(row: {
   requirements: string;
   artifacts: string;
   appointments: string;
-  tasks: string;
   evidence: string;
   status: string;
   createdAt: Date;
   updatedAt: Date;
-}): CaseData {
+};
+
+function parseJson<T>(value: string | null, fallback: T): T {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export function rowToCaseData(row: CaseRow): CaseData {
   return {
     id: row.id,
     userId: row.userId,
     title: row.title,
     domain: row.domain as CaseData['domain'],
     adapterId: row.adapterId,
-    institution: parseJson(row.institution, { id: '', name: '', domain: 'government' as const }),
+    institution: parseJson(row.institution, {
+      id: '',
+      name: '',
+      domain: 'government' as const,
+    }),
     service: row.service ? parseJson(row.service, undefined) : undefined,
     intent: parseJson(row.intent, {
       rawUtterance: '',
@@ -49,21 +55,20 @@ export function dbCaseToCaseData(row: {
       definitionVersion: '',
       currentStepId: '',
       currentStepIndex: 0,
-      status: 'active',
+      status: 'active' as const,
       completedSteps: [],
       slots: {},
     }),
     state: parseJson(row.state, {
-      phase: 'intake',
+      phase: 'intake' as const,
       readinessScore: 0,
-      readinessStatus: 'not_ready',
+      readinessStatus: 'not_ready' as const,
       blockers: [],
       flags: [],
     }),
     requirements: parseJson(row.requirements, []),
     artifacts: parseJson(row.artifacts, []),
     appointments: parseJson(row.appointments, []),
-    tasks: parseJson(row.tasks, []),
     evidence: parseJson(row.evidence, []),
     status: row.status as CaseData['status'],
     createdAt: row.createdAt.toISOString(),
@@ -71,54 +76,44 @@ export function dbCaseToCaseData(row: {
   };
 }
 
+function toRowFields(caseData: CaseData) {
+  return {
+    userId: caseData.userId,
+    title: caseData.title,
+    domain: caseData.domain,
+    adapterId: caseData.adapterId,
+    institution: JSON.stringify(caseData.institution),
+    service: caseData.service ? JSON.stringify(caseData.service) : null,
+    intent: JSON.stringify(caseData.intent),
+    workflow: JSON.stringify(caseData.workflow),
+    state: JSON.stringify(caseData.state),
+    requirements: JSON.stringify(caseData.requirements),
+    artifacts: JSON.stringify(caseData.artifacts),
+    appointments: JSON.stringify(caseData.appointments),
+    evidence: JSON.stringify(caseData.evidence),
+    status: caseData.status,
+  };
+}
+
 export async function getCaseById(id: string): Promise<CaseData | null> {
   const row = await prisma.case.findUnique({ where: { id } });
-  return row ? dbCaseToCaseData(row) : null;
+  return row ? rowToCaseData(row) : null;
 }
 
 export async function saveCase(caseData: CaseData): Promise<CaseData> {
+  const fields = toRowFields(caseData);
   const row = await prisma.case.upsert({
     where: { id: caseData.id },
-    create: {
-      id: caseData.id,
-      userId: caseData.userId,
-      title: caseData.title,
-      domain: caseData.domain,
-      adapterId: caseData.adapterId,
-      institution: JSON.stringify(caseData.institution),
-      service: caseData.service ? JSON.stringify(caseData.service) : null,
-      intent: JSON.stringify(caseData.intent),
-      workflow: JSON.stringify(caseData.workflow),
-      state: JSON.stringify(caseData.state),
-      requirements: JSON.stringify(caseData.requirements),
-      artifacts: JSON.stringify(caseData.artifacts),
-      appointments: JSON.stringify(caseData.appointments),
-      tasks: JSON.stringify(caseData.tasks),
-      evidence: JSON.stringify(caseData.evidence),
-      status: caseData.status,
-    },
-    update: {
-      title: caseData.title,
-      workflow: JSON.stringify(caseData.workflow),
-      state: JSON.stringify(caseData.state),
-      requirements: JSON.stringify(caseData.requirements),
-      artifacts: JSON.stringify(caseData.artifacts),
-      appointments: JSON.stringify(caseData.appointments),
-      tasks: JSON.stringify(caseData.tasks),
-      evidence: JSON.stringify(caseData.evidence),
-      status: caseData.status,
-    },
+    create: { id: caseData.id, ...fields },
+    update: fields,
   });
-  return dbCaseToCaseData(row);
+  return rowToCaseData(row);
 }
 
 export async function listCases(userId: string, status?: string): Promise<CaseData[]> {
   const rows = await prisma.case.findMany({
-    where: {
-      userId,
-      ...(status ? { status } : {}),
-    },
+    where: { userId, ...(status ? { status } : {}) },
     orderBy: { updatedAt: 'desc' },
   });
-  return rows.map(dbCaseToCaseData);
+  return rows.map(rowToCaseData);
 }

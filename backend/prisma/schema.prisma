@@ -8,11 +8,21 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  email     String   @unique
-  createdAt DateTime @default(now())
+  email     String?   @unique
+  createdAt DateTime  @default(now())
   cases     Case[]
+  sessions  Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
 }
 
 model Case {
@@ -22,21 +32,22 @@ model Case {
   title        String
   domain       String
   adapterId    String
-  institution  String   // JSON
-  service      String?  // JSON
-  intent       String   // JSON
-  workflow     String   // JSON
-  state        String   // JSON
-  requirements String   @default("[]") // JSON
-  artifacts    String   @default("[]") // JSON
-  appointments String   @default("[]") // JSON
-  tasks        String   @default("[]") // JSON
-  evidence     String   @default("[]") // JSON
+  institution  String
+  service      String?
+  intent       String
+  workflow     String
+  state        String
+  requirements String   @default("[]")
+  artifacts    String   @default("[]")
+  appointments String   @default("[]")
+  evidence     String   @default("[]")
   status       String   @default("open")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   auditEvents AuditEvent[]
+
+  @@index([userId, updatedAt])
 }
 
 model AuditEvent {
@@ -46,15 +57,17 @@ model AuditEvent {
   actor     String
   action    String
   stepId    String?
-  input     String?  // JSON
-  output    String?  // JSON
+  input     String?
+  output    String?
   success   Boolean  @default(true)
   timestamp DateTime @default(now())
+
+  @@index([caseId, timestamp])
 }
 
 model VoiceCache {
   id        String   @id @default(cuid())
-  textHash  String   @unique
+  cacheKey  String   @unique
   audioPath String
   createdAt DateTime @default(now())
 }

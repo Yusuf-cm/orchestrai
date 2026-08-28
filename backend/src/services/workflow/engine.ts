@@ -1,9 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { CaseData, WorkflowDefinition } from '@waypoint/shared';
+import type { CaseData, WorkflowDefinition, WorkflowStep } from '@waypoint/shared';
 import { getWorkflow, getWorkflowStep } from './loader';
 import { getMatchingTransition } from './conditions';
 import { getAdapter } from '../../adapters/registry';
 import { logAudit } from '../audit';
+import { requiresUserConfirmation } from '../execution';
 
 export interface AdvanceResult {
   allowed: boolean;
@@ -12,6 +13,31 @@ export interface AdvanceResult {
   message?: string;
 }
 
+/** Steps whose mode means the system must stop and wait for the person. */
+function isWaitingOnUser(step: WorkflowStep): boolean {
+  return requiresUserConfirmation(step);
+}
+
+function recalculateReadiness(caseData: CaseData): CaseData {
+  const adapter = getAdapter(caseData.adapterId);
+  if (!adapter) return caseData;
+  const readiness = adapter.calculateReadiness(caseData);
+  return {
+    ...caseData,
+    state: {
+      ...caseData.state,
+      readinessScore: readiness.score,
+      readinessStatus: readiness.status,
+      blockers: readiness.blockers,
+    },
+  };
+}
+
+/**
+ * Runs the handler attached to the current step, if any. Handlers are the only
+ * way adapter/domain logic can influence case data, and they return data rather
+ * than mutating the case directly.
+ */
 export async function runStepHandler(caseData: CaseData): Promise<CaseData> {
   const workflow = getWorkflow(caseData.workflow.definitionId);
   if (!workflow) return caseData;
@@ -20,121 +46,159 @@ export async function runStepHandler(caseData: CaseData): Promise<CaseData> {
   if (!step?.handler) return caseData;
 
   const adapter = getAdapter(caseData.adapterId);
-  if (!adapter) return caseData;
-
-  const handler = adapter.handlers[step.handler];
-  if (!handler) return caseData;
+  const handler = adapter?.handlers[step.handler];
+  if (!adapter || !handler) return caseData;
 
   const result = await handler(caseData, step);
-  if (!result.success) return caseData;
-
-  let updated = { ...caseData };
-  if (result.requirements) {
-    updated.requirements = result.requirements;
+  if (!result.success) {
+    await logAudit({
+      caseId: caseData.id,
+      actor: 'system',
+      action: 'step_handler_failed',
+      stepId: step.id,
+      output: { error: result.error },
+      success: false,
+    });
+    return caseData;
   }
+
+  let updated: CaseData = { ...caseData };
+  if (result.requirements) updated.requirements = result.requirements;
   if (result.output) {
     updated.workflow = {
       ...updated.workflow,
       slots: { ...updated.workflow.slots, ...result.output },
     };
   }
-  if (result.blockers) {
-    updated.state = { ...updated.state, blockers: result.blockers };
-  }
-  if (result.flags) {
+  if (result.flags?.length) {
     updated.state = {
       ...updated.state,
       flags: [...new Set([...updated.state.flags, ...result.flags])],
     };
   }
 
-  const readiness = adapter.calculateReadiness(updated);
-  updated.state = {
-    ...updated.state,
-    readinessScore: readiness.score,
-    readinessStatus: readiness.status,
-    blockers: readiness.blockers,
-  };
-
-  return updated;
+  return recalculateReadiness(updated);
 }
 
+/**
+ * Attempts a single deterministic transition. The engine is the only writer of
+ * workflow position: callers describe what happened, the engine decides whether
+ * the case may move and where.
+ */
 export async function tryAdvance(
   caseData: CaseData,
   trigger: string = 'auto'
 ): Promise<AdvanceResult> {
   const workflow = getWorkflow(caseData.workflow.definitionId);
   if (!workflow) {
-    return { allowed: false, reason: 'Workflow not found', case: caseData };
+    return { allowed: false, reason: 'Workflow definition not found', case: caseData };
   }
 
-  let current = await runStepHandler(caseData);
+  const current = await runStepHandler(caseData);
   const step = getWorkflowStep(workflow, current.workflow.currentStepId);
   if (!step) {
-    return { allowed: false, reason: 'Current step not found', case: current };
+    return { allowed: false, reason: 'Current step not found in workflow', case: current };
   }
 
   const nextStepId = getMatchingTransition(step.transitions, current);
   if (!nextStepId) {
-    return {
-      allowed: false,
-      reason: 'No valid transition for current state',
-      case: current,
-    };
+    return { allowed: false, reason: 'No transition is satisfied yet', case: current };
   }
-
-  if (nextStepId === current.workflow.currentStepId) {
+  if (nextStepId === step.id) {
     return { allowed: false, reason: 'Already at this step', case: current };
   }
 
+  const nextStep = getWorkflowStep(workflow, nextStepId);
   const nextIndex = workflow.steps.findIndex((s) => s.id === nextStepId);
-  const updated: CaseData = {
+  const isTerminal = (nextStep?.transitions ?? []).length === 0;
+
+  let updated: CaseData = {
     ...current,
     workflow: {
       ...current.workflow,
       currentStepId: nextStepId,
       currentStepIndex: nextIndex,
-      completedSteps: [...current.workflow.completedSteps, step.id],
-      status: nextStepId === 'resolved' || nextStepId === 'emergency_redirect' ? 'completed' : current.workflow.status,
+      completedSteps: [...new Set([...current.workflow.completedSteps, step.id])],
+      status: isTerminal ? 'completed' : 'active',
+      // A confirmation authorises exactly one transition. Clearing it here stops
+      // a single click from cascading through several steps.
+      slots: { ...current.workflow.slots, _user_confirmed: false },
     },
-    status: nextStepId === 'resolved' ? 'resolved' : current.status === 'open' ? 'in_progress' : current.status,
+    status: isTerminal ? 'resolved' : current.status === 'open' ? 'in_progress' : current.status,
     updatedAt: new Date().toISOString(),
   };
 
-  if (nextStepId === 'resolved') {
-    updated.state = { ...updated.state, phase: 'resolved', readinessStatus: 'completed' };
-  } else if (nextStepId.includes('schedule') || nextStepId.includes('visit')) {
-    updated.state = { ...updated.state, phase: 'action' };
-  } else if (nextStepId.includes('collect') || nextStepId.includes('document')) {
-    updated.state = { ...updated.state, phase: 'preparation' };
+  if (nextStep) {
+    updated.state = { ...updated.state, phase: phaseForStep(nextStep, isTerminal) };
   }
 
-  const adapter = getAdapter(updated.adapterId);
-  if (adapter) {
-    const readiness = adapter.calculateReadiness(updated);
-    updated.state = {
-      ...updated.state,
-      readinessScore: readiness.score,
-      readinessStatus: readiness.status,
-      blockers: readiness.blockers,
-    };
-  }
+  updated = recalculateReadiness(updated);
 
   await logAudit({
     caseId: updated.id,
     actor: trigger === 'user_confirms' ? 'user' : 'system',
-    action: 'workflow_advance',
+    action: 'workflow_advanced',
     stepId: nextStepId,
     input: { from: step.id, trigger },
     success: true,
   });
 
-  const afterAdvance = await runStepHandler(updated);
-  return {
-    allowed: true,
-    case: afterAdvance,
-    message: `Advanced to ${nextStepId}`,
-  };
+  const afterHandler = await runStepHandler(updated);
+  return { allowed: true, case: afterHandler, message: `Advanced to ${nextStepId}` };
+}
+
+function phaseForStep(step: WorkflowStep, isTerminal: boolean): CaseData['state']['phase'] {
+  if (isTerminal) return 'resolved';
+  switch (step.type) {
+    case 'collect_input':
+    case 'ask_question':
+      return 'intake';
+    case 'document_required':
+    case 'assist_user':
+      return 'preparation';
+    case 'guide_user':
+    case 'appointment':
+    case 'payment':
+      return 'action';
+    case 'human_handoff':
+      return 'followup';
+    default:
+      return 'preparation';
+  }
+}
+
+/**
+ * Advances as far as the case legitimately can without user input, stopping at
+ * the first step that needs a person. Handler-driven steps (lookups,
+ * validations) run automatically; guide/collect/appointment steps do not.
+ */
+export async function advanceUntilUserInput(
+  caseData: CaseData,
+  trigger: string = 'auto',
+  maxSteps = 12
+): Promise<CaseData> {
+  const workflow = getWorkflow(caseData.workflow.definitionId);
+  if (!workflow) return caseData;
+
+  let current = await runStepHandler(caseData);
+
+  for (let i = 0; i < maxSteps; i++) {
+    const step = getWorkflowStep(workflow, current.workflow.currentStepId);
+    if (!step) break;
+    if (isWaitingOnUser(step) && i > 0) break;
+
+    const result = await tryAdvance(current, i === 0 ? trigger : 'auto');
+    if (!result.allowed) {
+      current = result.case;
+      break;
+    }
+    current = result.case;
+
+    const newStep = getWorkflowStep(workflow, current.workflow.currentStepId);
+    if (!newStep || isWaitingOnUser(newStep) || newStep.transitions.length === 0) break;
+  }
+
+  return current;
 }
 
 export function createInitialCase(
@@ -186,7 +250,7 @@ export function createInitialCase(
   };
 }
 
-export function getCurrentStepInfo(caseData: CaseData) {
+export function getCurrentStepInfo(caseData: CaseData): WorkflowStep | null {
   const workflow = getWorkflow(caseData.workflow.definitionId);
   if (!workflow) return null;
   return getWorkflowStep(workflow, caseData.workflow.currentStepId);

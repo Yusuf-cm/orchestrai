@@ -1,0 +1,105 @@
+workflow:
+  id: gov.ke_id_replacement_v1
+  version: "1.0.0"
+  domain: government
+  adapter: gov-adapter-v1
+  institution: ecitizen-ke
+  title: Replace a lost national ID
+
+  slots:
+    - name: county
+      type: string
+      required: true
+    - name: has_id_number
+      type: boolean
+      required: false
+    - name: language
+      type: string
+      required: false
+
+  steps:
+    - id: intake_confirm
+      type: collect_input
+      mode: assist
+      title: Confirm a few details
+      description: >-
+        Two answers decide which documents you need: the county where you will
+        apply, and whether you still know your old ID number.
+      inputs: [county, has_id_number]
+      transitions:
+        - to: resolve_requirements
+          when: slots_filled:county
+
+    - id: resolve_requirements
+      type: lookup
+      mode: execute
+      title: Checking what the registrar requires
+      handler: gov.resolveRequirements
+      transitions:
+        - to: collect_documents
+          when: always
+
+    - id: collect_documents
+      type: document_required
+      mode: assist
+      title: Gather what you need
+      description: >-
+        Tick each item once you have it. Most rejected applications are missing
+        the police abstract, so start there.
+      transitions:
+        - to: payment_details
+          when: requirements_satisfied
+
+    - id: payment_details
+      type: lookup
+      mode: execute
+      title: Working out the fee
+      handler: gov.getPaymentDetails
+      transitions:
+        - to: confirm_payment
+          when: always
+
+    - id: confirm_payment
+      type: payment
+      mode: assist
+      title: Pay the replacement fee
+      description: >-
+        Submit the application on eCitizen first, then pay against the reference
+        number it gives you so the payment attaches to your file.
+      transitions:
+        - to: centre_guide
+          when: user_confirmed
+
+    - id: centre_guide
+      type: guide_user
+      mode: guide
+      title: Go to a Huduma Centre
+      handler: gov.getCentreGuide
+      description: >-
+        Carry the originals, not only photocopies. Arrive early — queues build
+        through the morning.
+      transitions:
+        - to: collect_waiting_card
+          when: user_confirmed
+
+    - id: collect_waiting_card
+      type: guide_user
+      mode: guide
+      title: Keep your waiting card safe
+      description: >-
+        The waiting card is proof of your application and works as
+        identification while the card is produced. Keep it with you.
+      transitions:
+        - to: resolved
+          when: user_confirmed
+
+    - id: resolved
+      type: completion
+      mode: guide
+      title: Application complete
+      description: >-
+        Your application is in. Check collection status on eCitizen, or ask at
+        the same Huduma Centre.
+
+  completion:
+    step: resolved

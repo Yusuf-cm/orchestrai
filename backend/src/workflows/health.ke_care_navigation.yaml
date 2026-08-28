@@ -1,0 +1,132 @@
+workflow:
+  id: health.ke_care_navigation_v1
+  version: "1.0.0"
+  domain: healthcare
+  adapter: health-adapter-v1
+  institution: sha-health-ke
+  title: Find the right level of care
+
+  slots:
+    - name: symptom_description
+      type: string
+      required: true
+    - name: duration_days
+      type: number
+      required: true
+    - name: severity_1_10
+      type: number
+      required: true
+    - name: county
+      type: string
+      required: true
+    - name: has_sha_cover
+      type: boolean
+      required: false
+    - name: selected_facility_id
+      type: string
+      required: false
+    - name: care_level
+      type: string
+      required: false
+
+  steps:
+    - id: symptom_intake
+      type: collect_input
+      mode: assist
+      title: Describe what is going on
+      description: >-
+        Waypoint does not diagnose. It works out which level of facility can
+        help so you do not lose a day in the wrong queue.
+      inputs: [symptom_description, duration_days, severity_1_10, county, has_sha_cover]
+      transitions:
+        - to: urgency_screen
+          when: slots_filled:symptom_description
+
+    - id: urgency_screen
+      type: validate
+      mode: execute
+      title: Safety screening
+      handler: health.urgencyTriage
+      transitions:
+        - to: emergency_redirect
+          when: slot:care_level == emergency
+        - to: check_cover
+          when: slot:care_level
+
+    - id: emergency_redirect
+      type: human_handoff
+      mode: escalate
+      title: This needs emergency care now
+      description: >-
+        Go to the nearest accident and emergency department, or call 999 or 112.
+        Do not wait for an appointment and do not drive yourself.
+
+    - id: check_cover
+      type: lookup
+      mode: execute
+      title: Checking your cover
+      handler: health.checkCover
+      transitions:
+        - to: find_facilities
+          when: always
+
+    - id: find_facilities
+      type: lookup
+      mode: execute
+      title: Finding facilities at the right level
+      handler: health.findFacilities
+      transitions:
+        - to: select_facility
+          when: always
+
+    - id: select_facility
+      type: collect_input
+      mode: assist
+      title: Choose where to go
+      description: >-
+        Facilities at the recommended level are listed first. Going higher
+        without a referral usually means a longer wait, not faster care.
+      transitions:
+        - to: prepare_visit
+          when: slot:selected_facility_id
+
+    - id: prepare_visit
+      type: document_required
+      mode: assist
+      title: What to carry
+      handler: health.prepareVisit
+      description: Tick each item so nothing sends you home at registration.
+      transitions:
+        - to: plan_visit
+          when: requirements_satisfied
+
+    - id: plan_visit
+      type: appointment
+      mode: assist
+      title: Plan the visit
+      description: >-
+        Record when you intend to go. Most county facilities are walk-in, so
+        this is a plan you can keep rather than a booking.
+      transitions:
+        - to: post_visit_followup
+          when: appointment_scheduled
+
+    - id: post_visit_followup
+      type: ask_question
+      mode: assist
+      title: After the visit
+      description: >-
+        Tell Waypoint what happened. If you were referred, that becomes the next
+        step to track rather than something you have to remember.
+      transitions:
+        - to: resolved
+          when: user_confirmed
+
+    - id: resolved
+      type: completion
+      mode: guide
+      title: Care coordinated
+      description: Your case stays here if you need to pick it up again.
+
+  completion:
+    step: resolved
