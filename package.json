@@ -1,0 +1,25 @@
+{
+  "name": "waypoint",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered case management platform for navigating government and healthcare institutions",
+  "workspaces": [
+    "packages/shared",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run build -w packages/shared && npm run build -w backend && npm run build -w frontend",
+    "test": "npm run test -w backend",
+    "test:milestone": "npm run test:milestones -w backend",
+    "db:push": "npm run db:push -w backend",
+    "db:seed": "npm run db:seed -w backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

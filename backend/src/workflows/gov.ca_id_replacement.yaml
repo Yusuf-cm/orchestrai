@@ -1,0 +1,99 @@
+workflow:
+  id: gov.ca_id_replacement_v1
+  version: "1.0.0"
+  domain: government
+  adapter: gov-adapter-v1
+  institution: dmv-ca
+  title: Replace Lost California Driver's License/ID
+
+  slots:
+    - name: state
+      type: string
+      required: true
+    - name: id_type
+      type: enum
+      required: true
+    - name: is_us_citizen
+      type: boolean
+      required: true
+    - name: zip_code
+      type: string
+      required: false
+
+  steps:
+    - id: intake_confirm
+      type: collect_input
+      mode: assist
+      title: Confirm your details
+      description: We need a few details to determine the right process
+      inputs: [state, id_type, is_us_citizen, zip_code]
+      transitions:
+        - to: resolve_requirements
+          when: slots_filled
+
+    - id: resolve_requirements
+      type: lookup
+      mode: execute
+      title: Loading requirements
+      handler: gov.resolveRequirements
+      transitions:
+        - to: collect_documents
+          when: always
+
+    - id: collect_documents
+      type: document_required
+      mode: assist
+      title: Gather your documents
+      description: Upload or confirm each required document
+      requirements_ref: mandatory_documents
+      transitions:
+        - to: readiness_check
+          when: all_requirements_satisfied
+        - to: collect_documents
+          when: requirements_pending
+
+    - id: readiness_check
+      type: validate
+      mode: execute
+      title: Checking readiness
+      handler: gov.checkReadiness
+      transitions:
+        - to: not_ready_brief
+          when: readiness < 100
+        - to: schedule_visit
+          when: readiness == 100
+
+    - id: not_ready_brief
+      type: guide_user
+      mode: guide
+      title: Not quite ready yet
+      description: You still have items to complete before visiting the DMV
+      transitions:
+        - to: collect_documents
+          when: always
+
+    - id: schedule_visit
+      type: guide_user
+      mode: guide
+      title: You're ready to visit the DMV
+      handler: gov.getOfficeGuide
+      transitions:
+        - to: visit_complete
+          when: user_confirms
+
+    - id: visit_complete
+      type: completion
+      mode: guide
+      title: Visit complete
+      transitions:
+        - to: resolved
+          when: user_confirms
+
+    - id: resolved
+      type: completion
+      mode: guide
+      title: Case resolved
+
+  completion:
+    step: resolved
+    actions: [generate_summary]
