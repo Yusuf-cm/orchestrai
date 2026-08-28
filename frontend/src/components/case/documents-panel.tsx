@@ -69,7 +69,7 @@ export function DocumentsPanel({
           {!uploading && <Upload className="h-4 w-4" />}
           Choose photo or PDF
         </Button>
-        <p className="mt-2 text-center text-[11px] text-paper-400">JPEG, PNG, HEIC or PDF · up to 10 MB</p>
+        <p className="mt-2 text-center text-[11px] text-paper-500">JPEG, PNG, HEIC or PDF · up to 10 MB</p>
       </div>
 
       {artifacts.length > 0 ? (

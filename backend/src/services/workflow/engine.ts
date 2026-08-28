@@ -246,7 +246,6 @@ export function createInitialCase(
     requirements: [],
     artifacts: [],
     appointments: [],
-    tasks: [],
     evidence: [],
     status: 'open',
     createdAt: new Date().toISOString(),

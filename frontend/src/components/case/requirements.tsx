@@ -108,7 +108,7 @@ function Group({
     <section>
       <div className="mb-2 flex items-baseline justify-between">
         <h3 className="text-xs font-semibold uppercase tracking-widest text-paper-500">{title}</h3>
-        <span className="text-xs text-paper-400">{subtitle}</span>
+        <span className="text-xs text-paper-500">{subtitle}</span>
       </div>
       <ul className="space-y-2">
         {requirements.map((req) => (
@@ -148,20 +148,26 @@ function RequirementRow({
         done ? "border-forest-200 bg-forest-50/60" : "border-paper-200 bg-white"
       )}
     >
-      <div className="flex items-start gap-3 p-3.5">
+      <div className="flex items-start gap-2 p-3.5">
+        {/* Padded to a comfortable thumb target while the visible circle stays small */}
         <button
           type="button"
           disabled={busy}
           onClick={() => onToggle(requirement)}
+          aria-pressed={done}
           aria-label={done ? `Mark ${requirement.label} as not done` : `Mark ${requirement.label} as done`}
-          className={cn(
-            "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-all active:scale-90 disabled:opacity-50",
-            done
-              ? "border-forest-600 bg-forest-600 text-white"
-              : "border-paper-300 bg-white hover:border-forest-400"
-          )}
+          className="-m-1.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-transform active:scale-90 disabled:opacity-50"
         >
-          {done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : <Circle className="h-0 w-0" />}
+          <span
+            className={cn(
+              "flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors",
+              done
+                ? "border-forest-600 bg-forest-600 text-white"
+                : "border-paper-300 bg-white"
+            )}
+          >
+            {done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : <Circle className="h-0 w-0" />}
+          </span>
         </button>
 
         <div className="min-w-0 flex-1">
@@ -189,43 +195,44 @@ function RequirementRow({
           <button
             type="button"
             onClick={() => setOpen(!open)}
-            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-paper-500 hover:text-forest-700"
+            aria-expanded={open}
+            className="-ml-1 mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-lg px-1 text-[13px] font-medium text-forest-800 hover:bg-forest-50"
           >
             Where this comes from
-            <ChevronDown className={cn("h-3 w-3 transition-transform", open && "rotate-180")} />
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
           </button>
 
           {open && (
-            <div className="animate-fade mt-2 space-y-2 rounded-lg bg-paper-100 p-3">
-              <p className="text-xs text-paper-600">{meta.blurb}</p>
+            <div className="animate-fade mb-1 space-y-2.5 rounded-lg bg-paper-100 p-3.5">
+              <p className="text-[13px] leading-relaxed text-paper-700">{meta.blurb}</p>
               {evidence.length > 0 ? (
                 evidence.map((e) => (
-                  <div key={e.id} className="text-xs">
+                  <div key={e.id} className="text-[13px]">
                     {e.sourceUrl ? (
                       <a
                         href={e.sourceUrl}
                         target="_blank"
                         rel="noreferrer noopener"
-                        className="inline-flex items-center gap-1 font-medium text-forest-700 hover:underline"
+                        className="inline-flex min-h-11 items-center gap-1.5 font-medium text-forest-800 underline decoration-forest-300 underline-offset-2 hover:decoration-forest-700"
                       >
                         {e.sourceLabel}
-                        <ExternalLink className="h-3 w-3" />
+                        <ExternalLink className="h-3.5 w-3.5 shrink-0" />
                       </a>
                     ) : (
-                      <span className="font-medium text-paper-700">{e.sourceLabel}</span>
+                      <span className="font-medium text-paper-800">{e.sourceLabel}</span>
                     )}
                     {e.lastVerified && (
-                      <span className="ml-1 text-paper-400">· checked {e.lastVerified}</span>
+                      <span className="ml-1.5 text-paper-500">· checked {e.lastVerified}</span>
                     )}
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-paper-500">No published source recorded.</p>
+                <p className="text-[13px] text-paper-600">No published source recorded.</p>
               )}
 
               {requirement.acceptableDocuments && requirement.acceptableDocuments.length > 0 && (
-                <p className="text-xs text-paper-600">
-                  <span className="font-medium">Accepted:</span>{" "}
+                <p className="text-[13px] leading-relaxed text-paper-700">
+                  <span className="font-semibold">Accepted:</span>{" "}
                   {requirement.acceptableDocuments.join(", ")}
                 </p>
               )}

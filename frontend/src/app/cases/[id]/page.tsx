@@ -149,11 +149,11 @@ export default function CasePage() {
 
       <main className="mx-auto max-w-2xl space-y-5 px-4 py-5">
         {isHealth && (
-          <div className="flex items-start gap-2.5 rounded-xl border border-ochre-200 bg-ochre-50 p-3.5">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-ochre-500" />
-            <p className="text-[13px] leading-relaxed text-paper-700">
-              <span className="font-semibold">Waypoint is not a doctor.</span> It helps you reach the
-              right level of care. It does not diagnose, prescribe, or replace a clinician.
+          <div className="flex items-start gap-2.5 rounded-xl border border-ochre-200 bg-ochre-50 px-3.5 py-3">
+            <AlertTriangle className="mt-px h-4 w-4 shrink-0 text-ochre-500" />
+            <p className="text-[13px] leading-snug text-paper-800">
+              <span className="font-semibold">Not medical advice.</span> Waypoint helps you reach the
+              right level of care — it does not diagnose or prescribe.
             </p>
           </div>
         )}
@@ -166,7 +166,7 @@ export default function CasePage() {
               size={116}
             />
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-paper-400">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-paper-500">
                 {caseData.domain}
               </p>
               <h1 className="mt-1 font-display text-2xl leading-tight text-paper-900">

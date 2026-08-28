@@ -77,7 +77,7 @@ export function AskPanel({ caseId }: { caseId: string }) {
           ))}
         </div>
 
-        <p className="mt-3 text-[11px] leading-relaxed text-paper-400">
+        <p className="mt-3 text-[11px] leading-relaxed text-paper-500">
           Answers come only from this case&apos;s recorded requirements and their sources. Always
           confirm anything important on the official portal.
         </p>

@@ -49,7 +49,7 @@ export function Timeline({ events }: { events: AuditEvent[] }) {
               {ACTOR_LABEL[event.actor]} · {formatDateTime(event.timestamp)}
             </p>
             {event.stepId && (
-              <p className="mt-0.5 font-mono text-[11px] text-paper-400">{event.stepId}</p>
+              <p className="mt-0.5 font-mono text-[11px] text-paper-500">{event.stepId}</p>
             )}
           </li>
         );

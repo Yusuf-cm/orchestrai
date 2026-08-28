@@ -1,14 +1,34 @@
-# API Reference
+# API
 
-Base URL: `http://localhost:4000` (dev) | `https://waypoint-api.onrender.com` (prod)
+Base URL: `http://localhost:4000` in development.
 
-## Health
+Every route under `/api/cases` and `/api/voice` (except `/api/voice/status`) requires a session token:
 
-### `GET /health`
+```
+Authorization: Bearer <token>
+```
+
+Requests without a valid token return `401`. Cases are scoped to their owner, so a case id on its own grants nothing.
+
+---
+
+## Session
+
+### `POST /api/session`
+
+Mints a session. The client stores the token and reuses it.
 
 ```json
-{ "status": "ok", "version": "0.1.0", "timestamp": "2026-08-28T..." }
+{ "name": "Guest" }
 ```
+
+```json
+{ "token": "…", "userId": "…", "name": "Guest" }
+```
+
+### `GET /api/session`
+
+Validates the current token. `200` with `{ "valid": true }`, or `401`.
 
 ---
 
@@ -16,160 +36,128 @@ Base URL: `http://localhost:4000` (dev) | `https://waypoint-api.onrender.com` (p
 
 ### `POST /api/cases/start`
 
-Start a new case from natural language.
-
-**Body:**
 ```json
-{
-  "utterance": "I lost my California driver's license",
-  "userId": "demo-user"
-}
+{ "utterance": "Nimepoteza kitambulisho changu, niko Nairobi" }
 ```
 
-**Response:** `201` — Full case object with workflow state, requirements (if resolved), current step.
+Returns `201` with a case positioned at the first step needing the person. Automatic steps have already run.
 
----
+`400 UNSUPPORTED` if the request falls outside the registered domains — Waypoint says so rather than opening a case it cannot serve.
 
 ### `GET /api/cases`
 
-List cases for a user.
-
-**Query:** `?userId=demo-user&status=open`
-
-**Response:** `200` — `{ cases: Case[] }`
-
----
+Cases for the session, newest first. Optional `?status=open`.
 
 ### `GET /api/cases/:id`
 
-Get case by ID.
-
-**Response:** `200` — Case object with requirements, artifacts, audit tail.
-
----
+One case, including `audit`.
 
 ### `PATCH /api/cases/:id`
 
-Update case slots or mark step complete.
+Describes what happened. The engine decides whether the case moves.
 
-**Body:**
 ```json
 {
-  "slots": { "zip_code": "90210" },
+  "satisfyRequirement": "req_police_abstract",
+  "unsatisfyRequirement": "req_birth_certificate",
   "confirmStep": true,
-  "satisfyRequirement": "req_residency_2"
+  "selectFacility": "fac-langata-hc",
+  "scheduleVisit": { "facilityId": "fac-langata-hc", "datetime": "2026-09-01T05:00:00Z" },
+  "slots": { "county": "Kisumu" }
 }
 ```
 
-**Response:** `200` — Updated case. Engine validates all changes.
+All fields optional. `confirmStep` authorises exactly one transition.
 
----
+Returns the updated case. If no transition is satisfied the case is returned unchanged — a successful response does not imply movement.
 
-### `POST /api/cases/:id/advance`
+### `POST /api/cases/:id/documents`
 
-Propose workflow advancement (engine-gated).
+`multipart/form-data` with `file` and optional `requirementId`.
 
-**Body:**
-```json
-{
-  "action": "user_confirms",
-  "payload": {}
-}
-```
+JPEG, PNG, WebP, HEIC, or PDF, up to 10 MB. Anything else returns `400 INVALID_UPLOAD`.
 
-**Response:**
-```json
-{
-  "allowed": true,
-  "case": { ... },
-  "message": "Advanced to readiness_check"
-}
-```
-
-If not allowed:
-```json
-{
-  "allowed": false,
-  "reason": "Requirements pending",
-  "case": { ... }
-}
-```
-
----
-
-### `POST /api/cases/:id/upload`
-
-Upload document artifact.
-
-**Body:** `multipart/form-data` — `file`, optional `requirementId`
-
-**Response:** `201` — `{ artifact, case }` with updated readiness.
-
----
+The file is recorded against a requirement. Waypoint does not read it or verify it with the institution.
 
 ### `POST /api/cases/:id/chat`
 
-AI clarification (streaming SSE).
-
-**Body:**
 ```json
-{
-  "message": "What counts as proof of residency?"
-}
+{ "message": "What is a police abstract?" }
 ```
 
-**Response:** `text/event-stream` — chunks of assistant text. Engine state included in final event.
+```json
+{ "reply": "…", "source": "ai" }
+```
+
+`source` is `"fallback"` when the answer came from case data rather than the language model. Answers are grounded in the case's recorded requirements; this endpoint never changes case state.
 
 ---
 
-## Voice (ElevenLabs)
+## Voice
+
+### `GET /api/voice/status`
+
+Unauthenticated. `{ "configured": true, "languages": ["en", "sw"] }`.
+
+### `POST /api/voice/transcribe`
+
+`multipart/form-data` with `audio`. Returns `{ "text": "…", "language": "en" }`.
+
+`503` with `{ "fallback": true }` when the voice service is unconfigured, so the client can offer typing instead.
 
 ### `POST /api/voice/speak`
 
-Convert text to speech.
-
-**Body:**
 ```json
-{
-  "text": "You need one more proof of residency document.",
-  "caseId": "optional-for-caching"
-}
+{ "caseId": "…", "language": "sw" }
 ```
 
-**Response:** `200` — `audio/mpeg` stream.
+Supply `text` to read specific wording, or `caseId` to have the case's next action composed and read.
 
-**Fallback:** If `ELEVENLABS_API_KEY` missing, returns `{ fallback: true, text }` and frontend uses Web Speech API.
+Returns `audio/mpeg`. The `X-Voice-Cached` header indicates a cache hit.
+
+When unconfigured, returns `200` with `{ "fallback": true, "text": "…" }` and the client uses on-device speech.
 
 ---
 
-## Workflows (debug)
+## Workflows
 
 ### `GET /api/workflows`
 
-List loaded workflow definitions.
-
-### `GET /api/workflows/:id`
-
-Get workflow definition by ID.
+Loaded definitions with id, title, domain, adapter, version, and step count. Useful for confirming what the server actually validated at boot.
 
 ---
 
-## Error format
+## Health
+
+### `GET /health`
 
 ```json
 {
-  "error": "Human-readable message",
-  "code": "REQUIREMENT_NOT_SATISFIED",
-  "details": {}
+  "status": "ok",
+  "version": "0.2.0",
+  "workflows": ["gov.ke_id_replacement_v1", "health.ke_care_navigation_v1"],
+  "adapters": ["gov-adapter-v1", "health-adapter-v1"],
+  "capabilities": { "languageModel": false, "voice": true }
 }
 ```
 
-## Status codes
+`capabilities` reports which optional keys are configured. Neither is required.
 
-| Code | Meaning |
-|------|---------|
-| 200 | Success |
-| 201 | Created |
-| 400 | Invalid request / engine rejected |
-| 404 | Case not found |
-| 500 | Server error |
+---
+
+## Errors
+
+```json
+{ "error": "Human-readable sentence.", "code": "UNSUPPORTED" }
+```
+
+| Code | Status | Meaning |
+|---|---|---|
+| `NO_SESSION` | 401 | Missing or expired token |
+| `NOT_FOUND` | 404 | Case absent, or not yours |
+| `UNSUPPORTED` | 400 | Outside the registered domains |
+| `INVALID_UPLOAD` | 400 | Wrong file type or too large |
+| `EMPTY` / `TOO_LONG` | 400 | Input failed validation |
+| `INTERNAL` | 500 | Unexpected failure |
+
+`error` is written to be shown to a person as-is.

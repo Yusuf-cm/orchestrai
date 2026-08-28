@@ -24,6 +24,12 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024, files: 1 },
 });
 
+/** Express types route params loosely; cases are always addressed by a single id. */
+function caseIdOf(req: AuthedRequest): string {
+  const id = req.params.id;
+  return Array.isArray(id) ? id[0] : String(id);
+}
+
 function handleError(res: Response, err: unknown): void {
   if (err instanceof UnsupportedRequestError) {
     res.status(400).json({ error: err.message, code: 'UNSUPPORTED' });
@@ -72,7 +78,7 @@ casesRouter.get('/', async (req: AuthedRequest, res) => {
 
 casesRouter.get('/:id', async (req: AuthedRequest, res) => {
   try {
-    const view = await getCaseView(req.params.id, req.userId!);
+    const view = await getCaseView(caseIdOf(req), req.userId!);
     if (!view) return res.status(404).json({ error: 'Case not found', code: 'NOT_FOUND' });
     res.json(view);
   } catch (err) {
@@ -90,8 +96,8 @@ async function assertOwnership(caseId: string, userId: string): Promise<void> {
 
 casesRouter.patch('/:id', async (req: AuthedRequest, res) => {
   try {
-    await assertOwnership(req.params.id, req.userId!);
-    res.json(await updateCase(req.params.id, req.body ?? {}));
+    await assertOwnership(caseIdOf(req), req.userId!);
+    res.json(await updateCase(caseIdOf(req), req.body ?? {}));
   } catch (err) {
     handleError(res, err);
   }
@@ -99,11 +105,11 @@ casesRouter.patch('/:id', async (req: AuthedRequest, res) => {
 
 casesRouter.post('/:id/documents', upload.single('file'), async (req: AuthedRequest, res) => {
   try {
-    await assertOwnership(req.params.id, req.userId!);
+    await assertOwnership(caseIdOf(req), req.userId!);
     if (!req.file) {
       return res.status(400).json({ error: 'Attach a file to upload.', code: 'NO_FILE' });
     }
-    const view = await uploadArtifact(req.params.id, req.file, req.body?.requirementId);
+    const view = await uploadArtifact(caseIdOf(req), req.file, req.body?.requirementId);
     res.status(201).json(view);
   } catch (err) {
     handleError(res, err);
@@ -112,7 +118,7 @@ casesRouter.post('/:id/documents', upload.single('file'), async (req: AuthedRequ
 
 casesRouter.post('/:id/chat', async (req: AuthedRequest, res) => {
   try {
-    const caseData = await getCaseById(req.params.id);
+    const caseData = await getCaseById(caseIdOf(req));
     if (!caseData || caseData.userId !== req.userId) {
       return res.status(404).json({ error: 'Case not found', code: 'NOT_FOUND' });
     }

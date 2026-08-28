@@ -26,7 +26,7 @@ export function CaseCard({ caseData }: { caseData: CaseView }) {
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <h3 className="truncate font-medium text-paper-900">{caseData.title}</h3>
-              <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-paper-400" />
+              <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-paper-500" />
             </div>
             <p className="truncate text-[13px] text-paper-500">{caseData.institution.name}</p>
 
@@ -43,7 +43,7 @@ export function CaseCard({ caseData }: { caseData: CaseView }) {
               />
             </div>
 
-            <p className="mt-2 text-[11px] text-paper-400">
+            <p className="mt-2 text-[11px] text-paper-500">
               Updated {formatRelative(caseData.updatedAt)}
             </p>
           </div>

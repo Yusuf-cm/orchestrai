@@ -73,8 +73,8 @@ export function NextActionCard({
       >
         <span
           className={cn(
-            "text-[11px] font-semibold uppercase tracking-widest",
-            isEmergency ? "text-alert-700" : "text-forest-700"
+            "text-[11px] font-bold uppercase tracking-widest",
+            isEmergency ? "text-alert-700" : "text-forest-800"
           )}
         >
           {isEmergency ? "Urgent" : "Next step"}
@@ -272,13 +272,16 @@ function CentreList({ slots }: { slots: Record<string, unknown> }) {
         <div key={centre.id} className="rounded-xl border border-paper-200 bg-white p-4">
           <p className="font-medium text-paper-900">{centre.name}</p>
           <p className="mt-0.5 text-sm text-paper-600">{centre.address}</p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-paper-500">
-            <span className="inline-flex items-center gap-1">
-              <Clock className="h-3 w-3" />
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-paper-600">
+            <span className="inline-flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
               {centre.hours}
             </span>
-            <a href={`tel:${centre.phone.replace(/\s/g, "")}`} className="inline-flex items-center gap-1 hover:text-forest-700">
-              <Phone className="h-3 w-3" />
+            <a
+              href={`tel:${centre.phone.replace(/\s/g, "")}`}
+              className="inline-flex min-h-11 items-center gap-1.5 font-medium text-forest-800 hover:underline"
+            >
+              <Phone className="h-3.5 w-3.5 shrink-0" />
               {centre.phone}
             </a>
           </div>
@@ -306,12 +309,12 @@ function FacilityChoices({
   return (
     <div className="mt-4 space-y-2">
       {Boolean(slots.care_level_label) && (
-        <div className="rounded-xl bg-forest-50 p-3">
-          <p className="text-sm font-medium text-forest-800">
+        <div className="rounded-xl border border-forest-200 bg-forest-50 p-3.5">
+          <p className="text-sm font-semibold text-forest-900">
             Recommended: {String(slots.care_level_label)}
           </p>
           {Boolean(slots.typical_wait) && (
-            <p className="mt-0.5 text-xs text-forest-600">
+            <p className="mt-1 text-[13px] text-forest-800">
               Typical wait: {String(slots.typical_wait)}
             </p>
           )}
@@ -328,7 +331,7 @@ function FacilityChoices({
             disabled={busy}
             onClick={() => onSelect(facility.id)}
             className={cn(
-              "w-full rounded-xl border p-4 text-left transition-all active:scale-[0.99] disabled:opacity-60",
+              "w-full rounded-xl border p-4 text-left transition-all active:scale-[0.99] disabled:opacity-60 sm:p-4",
               isSelected
                 ? "border-forest-500 bg-forest-50 ring-1 ring-forest-500"
                 : "border-paper-200 bg-white hover:border-forest-300"
@@ -338,11 +341,11 @@ function FacilityChoices({
               <p className="font-medium text-paper-900">{facility.name}</p>
               {isRecommended && <Badge tone="official">Right level</Badge>}
             </div>
-            <p className="mt-0.5 text-sm text-paper-600">{facility.address}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-paper-500">
+            <p className="mt-1 text-sm text-paper-600">{facility.address}</p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-paper-600">
               <span>{facility.distance}</span>
-              {facility.shaAccredited && <span className="text-forest-600">SHA accredited</span>}
-              <span className={facility.openNow ? "text-forest-600" : "text-ochre-500"}>
+              {facility.shaAccredited && <span className="text-forest-800">SHA accredited</span>}
+              <span className={facility.openNow ? "text-forest-800" : "text-ochre-600"}>
                 {facility.openNow ? "Open now" : "Closed now"}
               </span>
             </div>

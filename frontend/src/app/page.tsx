@@ -78,9 +78,9 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setTyping(true)}
-                className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-paper-600 hover:text-forest-700"
+                className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-forest-800 hover:bg-forest-50"
               >
-                <Keyboard className="h-3.5 w-3.5" />
+                <Keyboard className="h-4 w-4" />
                 Type it instead
               </button>
             </div>
@@ -125,7 +125,7 @@ export default function HomePage() {
           )}
 
           <div className="mt-5 border-t border-paper-200 pt-4">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-paper-400">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-paper-500">
               Try
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -135,7 +135,7 @@ export default function HomePage() {
                   type="button"
                   disabled={create.isPending}
                   onClick={() => submit(example.utterance)}
-                  className="rounded-full border border-paper-200 bg-paper-50 px-3 py-1.5 text-[13px] text-paper-700 transition-colors hover:border-forest-300 hover:bg-forest-50 hover:text-forest-800 disabled:opacity-50"
+                  className="min-h-11 rounded-full border border-paper-200 bg-paper-50 px-4 text-sm text-paper-800 transition-colors hover:border-forest-300 hover:bg-forest-50 hover:text-forest-900 disabled:opacity-50"
                 >
                   {example.label}
                 </button>
@@ -180,8 +180,8 @@ export default function HomePage() {
             { title: "More later", body: "Insurance, education, and utilities plug into the same engine." },
           ].map((item) => (
             <div key={item.title} className="rounded-xl border border-paper-200 bg-white p-4">
-              <p className="text-[13px] font-semibold text-paper-900">{item.title}</p>
-              <p className="mt-1 text-[13px] leading-relaxed text-paper-600">{item.body}</p>
+              <p className="text-sm font-semibold text-paper-900">{item.title}</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-paper-700">{item.body}</p>
             </div>
           ))}
         </section>
