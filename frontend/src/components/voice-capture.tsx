@@ -188,7 +188,7 @@ export function VoiceCapture({
   }, [onError, onTranscript, startSpeech, startTimer, stopRecorder]);
 
   const start = useCallback(() => {
-    if (scribe && navigator.mediaDevices?.getUserMedia) void startScribe();
+    if (scribe && navigator.mediaDevices) void startScribe();
     else startSpeech();
   }, [scribe, startScribe, startSpeech]);
 
