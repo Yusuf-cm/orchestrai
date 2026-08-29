@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Keyboard } from "lucide-react";
 import { toast } from "sonner";
-import { listCases, startCase, voiceStatus } from "@/lib/api";
+import { listCases, startCase } from "@/lib/api";
 import { CaseCard } from "@/components/case/case-card";
 import { VoiceCapture } from "@/components/voice-capture";
 import { SiteHeader } from "@/components/site-header";
@@ -27,13 +27,7 @@ export default function HomePage() {
     queryFn: listCases,
   });
 
-  const { data: voice } = useQuery({
-    queryKey: ["voice-status"],
-    queryFn: voiceStatus,
-  });
-
-  const voiceAvailable = voice?.configured === true;
-  const showVoice = voiceAvailable && !typing;
+  const showVoice = !typing;
 
   const create = useMutation({
     mutationFn: startCase,
@@ -123,17 +117,13 @@ export default function HomePage() {
                 className="mt-2 w-full resize-none rounded-xl border border-paper-200 bg-paper-50 px-4 py-3 text-[15px] text-paper-900 placeholder:text-paper-400 focus:border-forest-400 focus:bg-white focus:outline-none"
               />
               <div className="mt-3 flex items-center justify-between gap-3">
-                {voiceAvailable ? (
-                  <button
-                    type="button"
-                    onClick={() => setTyping(false)}
-                    className="text-[13px] font-medium text-paper-500 hover:text-forest-700"
-                  >
-                    Use voice
-                  </button>
-                ) : (
-                  <span />
-                )}
+                <button
+                  type="button"
+                  onClick={() => setTyping(false)}
+                  className="text-[13px] font-medium text-paper-500 hover:text-forest-700"
+                >
+                  Use voice
+                </button>
                 <Button
                   onClick={() => submit(text)}
                   loading={create.isPending}
