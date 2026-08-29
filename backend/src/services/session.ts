@@ -1,11 +1,16 @@
 import crypto from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
+import type { Multer } from 'multer';
 import { prisma } from '../db/prisma';
 
 const SESSION_DAYS = 30;
 
 export interface AuthedRequest extends Request {
   userId?: string;
+  params: Record<string, string>;
+  query: Record<string, string | string[] | undefined>;
+  body: Record<string, unknown>;
+  file?: Multer.File;
 }
 
 /**
