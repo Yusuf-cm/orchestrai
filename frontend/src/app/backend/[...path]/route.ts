@@ -4,12 +4,13 @@ import { NextRequest } from "next/server";
  * Same-origin reverse proxy onto the API.
  *
  * The live frontend is on a different Render hostname from the API. Browsers
- * send an Origin header; older API deploys throw a 500 on a CORS mismatch,
- * which is exactly what broke the public demo. This route forwards the request
- * server-side and deliberately drops Origin so the API treats it as
- * server-to-server — which already works on the currently deployed API.
+ * send an Origin header; older API deploys throw a 500 on a CORS mismatch.
+ * This route forwards server-side and drops Origin so the API treats it as
+ * server-to-server.
  *
- * NEXT_PUBLIC_API_URL is inlined at build time on Render.
+ * The upstream body is fully buffered. Piping `upstream.body` on Render's
+ * Next.js standalone server truncated JSON (session payloads arrived at 103
+ * bytes instead of 128), which made `res.json()` throw in the browser.
  */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000").replace(/\/$/, "");
 
@@ -30,6 +31,8 @@ const DROP_REQUEST_HEADERS = new Set([
 const DROP_RESPONSE_HEADERS = new Set([
   "connection",
   "content-encoding",
+  "content-length",
+  "etag",
   "transfer-encoding",
 ]);
 
@@ -44,7 +47,7 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
     }
   });
 
-  const init: RequestInit = {
+  const init: RequestInit & { duplex?: "half" } = {
     method: req.method,
     headers,
     redirect: "manual",
@@ -54,6 +57,7 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
     const buf = await req.arrayBuffer();
     if (buf.byteLength > 0) {
       init.body = buf;
+      init.duplex = "half";
     }
   }
 
@@ -77,8 +81,10 @@ async function proxy(req: NextRequest, context: { params: Promise<{ path: string
     if (lower.startsWith("access-control-")) return;
     out.set(key, value);
   });
+  out.set("cache-control", "no-store");
 
-  return new Response(upstream.body, { status: upstream.status, headers: out });
+  const body = await upstream.arrayBuffer();
+  return new Response(body, { status: upstream.status, headers: out });
 }
 
 export const GET = proxy;

@@ -35,9 +35,10 @@ async function ensureSession(): Promise<string> {
   });
   if (!res.ok) throw new Error("Could not start a session");
 
-  const { token } = (await res.json()) as { token: string };
-  storeToken(token);
-  return token;
+  const payload = (await res.json()) as { token?: string };
+  if (!payload.token) throw new Error("Could not start a session");
+  storeToken(payload.token);
+  return payload.token;
 }
 
 export class ApiError extends Error {

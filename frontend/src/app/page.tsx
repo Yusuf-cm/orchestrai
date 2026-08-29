@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Keyboard } from "lucide-react";
 import { toast } from "sonner";
-import { listCases, startCase } from "@/lib/api";
+import { listCases, startCase, voiceStatus } from "@/lib/api";
 import { CaseCard } from "@/components/case/case-card";
 import { VoiceCapture } from "@/components/voice-capture";
 import { SiteHeader } from "@/components/site-header";
@@ -24,10 +24,18 @@ export default function HomePage() {
   const [text, setText] = useState("");
   const [typing, setTyping] = useState(false);
 
-  const { data: cases = [], isLoading } = useQuery({
+  const { data: cases = [], isLoading, isError } = useQuery({
     queryKey: ["cases"],
     queryFn: listCases,
   });
+
+  const { data: voice } = useQuery({
+    queryKey: ["voice-status"],
+    queryFn: voiceStatus,
+  });
+
+  const voiceAvailable = voice?.configured === true;
+  const showVoice = voiceAvailable && !typing;
 
   const create = useMutation({
     mutationFn: startCase,
@@ -65,7 +73,7 @@ export default function HomePage() {
         </section>
 
         <Card className="p-6">
-          {!typing ? (
+          {showVoice ? (
             <div className="flex flex-col items-center">
               <VoiceCapture
                 onTranscript={submit}
@@ -105,13 +113,17 @@ export default function HomePage() {
                 className="mt-2 w-full resize-none rounded-xl border border-paper-200 bg-paper-50 px-4 py-3 text-[15px] text-paper-900 placeholder:text-paper-400 focus:border-forest-400 focus:bg-white focus:outline-none"
               />
               <div className="mt-3 flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => setTyping(false)}
-                  className="text-[13px] font-medium text-paper-500 hover:text-forest-700"
-                >
-                  Use voice
-                </button>
+                {voiceAvailable ? (
+                  <button
+                    type="button"
+                    onClick={() => setTyping(false)}
+                    className="text-[13px] font-medium text-paper-500 hover:text-forest-700"
+                  >
+                    Use voice
+                  </button>
+                ) : (
+                  <span />
+                )}
                 <Button
                   onClick={() => submit(text)}
                   loading={create.isPending}
@@ -150,6 +162,13 @@ export default function HomePage() {
               {[0, 1].map((i) => (
                 <div key={i} className="h-28 animate-pulse rounded-card bg-paper-200/60" />
               ))}
+            </div>
+          ) : isError ? (
+            <div className="rounded-card border border-dashed border-alert-300 bg-alert-50 px-6 py-10 text-center">
+              <p className="text-sm font-medium text-paper-800">Could not load your cases</p>
+              <p className="mx-auto mt-1 max-w-xs text-[13px] leading-relaxed text-paper-600">
+                The API may still be waking up. Wait a few seconds and refresh.
+              </p>
             </div>
           ) : cases.length > 0 ? (
             <>
