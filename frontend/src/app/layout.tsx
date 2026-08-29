@@ -16,6 +16,9 @@ const display = Instrument_Serif({
   display: "swap",
 });
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: "Waypoint — know what to bring, before you go",
   description:

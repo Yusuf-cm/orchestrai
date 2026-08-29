@@ -1,7 +1,43 @@
 import type { CaseView, Language } from "@waypoint/shared";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+/**
+ * In the browser, every call is same-origin `/backend`. Never fetch
+ * NEXT_PUBLIC_API_URL from the client — a wrong baked host
+ * (`https://waypoint-api.onrender.com`) 404s with no CORS headers.
+ */
 const TOKEN_KEY = "waypoint.session";
+const NETWORK_ERROR =
+  "Could not reach Waypoint. Wait 30 seconds for the API to wake, then refresh.";
+
+/**
+ * The browser never calls the API origin. Render baked
+ * `https://waypoint-api.onrender.com` into an old frontend build; that host
+ * 404s (`x-render-routing: no-server`) with no CORS headers. Same-origin
+ * `/backend` is the only URL the page is allowed to fetch.
+ */
+function bases(): string[] {
+  if (typeof window === "undefined") {
+    const direct = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+    return [direct || "http://127.0.0.1:4000"];
+  }
+  return ["/backend"];
+}
+
+async function fetchApi(path: string, init?: RequestInit): Promise<Response> {
+  const urls = bases().map((base) => `${base}${path}`);
+
+  for (let i = 0; i < urls.length; i++) {
+    try {
+      const res = await fetch(urls[i], init);
+      if (res.status === 502 && i < urls.length - 1) continue;
+      return res;
+    } catch {
+      // Try the next base (proxy → public API).
+    }
+  }
+
+  throw new Error(NETWORK_ERROR);
+}
 
 function readToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -20,16 +56,17 @@ async function ensureSession(): Promise<string> {
   const existing = readToken();
   if (existing) return existing;
 
-  const res = await fetch(`${API_URL}/api/session`, {
+  const res = await fetchApi("/api/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
   });
   if (!res.ok) throw new Error("Could not start a session");
 
-  const { token } = (await res.json()) as { token: string };
-  storeToken(token);
-  return token;
+  const payload = (await res.json()) as { token?: string };
+  if (!payload.token) throw new Error("Could not start a session");
+  storeToken(payload.token);
+  return payload.token;
 }
 
 export class ApiError extends Error {
@@ -40,14 +77,23 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit, retry = true): Promise<T> {
   const token = await ensureSession();
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...init?.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetchApi(path, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...init?.headers,
+      },
+    });
+  } catch (err) {
+    if (retry && typeof window !== "undefined") {
+      window.localStorage.removeItem(TOKEN_KEY);
+      return request<T>(path, init, false);
+    }
+    throw err instanceof Error ? err : new Error(NETWORK_ERROR);
+  }
 
   // A stale token means the server restarted; mint a fresh one and retry once.
   if (res.status === 401 && retry) {
@@ -104,7 +150,7 @@ export async function uploadDocument(
   form.append("file", file);
   if (requirementId) form.append("requirementId", requirementId);
 
-  const res = await fetch(`${API_URL}/api/cases/${caseId}/documents`, {
+  const res = await fetchApi(`/api/cases/${caseId}/documents`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: form,
@@ -127,18 +173,24 @@ export function askQuestion(
 }
 
 export async function voiceStatus(): Promise<{ configured: boolean }> {
-  const res = await fetch(`${API_URL}/api/voice/status`);
-  if (!res.ok) return { configured: false };
-  return res.json();
+  try {
+    const res = await fetchApi("/api/voice/status");
+    if (!res.ok) return { configured: false };
+    return res.json();
+  } catch {
+    return { configured: false };
+  }
 }
 
 /** Sends a recording to ElevenLabs Scribe and returns the transcript. */
-export async function transcribeAudio(blob: Blob): Promise<string> {
+export async function transcribeAudio(
+  blob: Blob
+): Promise<{ text: string; language?: Language }> {
   const token = await ensureSession();
   const form = new FormData();
   form.append("audio", blob, "recording.webm");
 
-  const res = await fetch(`${API_URL}/api/voice/transcribe`, {
+  const res = await fetchApi("/api/voice/transcribe", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: form,
@@ -147,8 +199,7 @@ export async function transcribeAudio(blob: Blob): Promise<string> {
     const body = await res.json().catch(() => ({}));
     throw new ApiError(body.error ?? "Could not transcribe audio", body.code, res.status);
   }
-  const { text } = (await res.json()) as { text: string };
-  return text;
+  return res.json() as Promise<{ text: string; language?: Language }>;
 }
 
 /**
@@ -161,7 +212,7 @@ export async function speakCase(
   language: Language = "en"
 ): Promise<HTMLAudioElement | null> {
   const token = await ensureSession();
-  const res = await fetch(`${API_URL}/api/voice/speak`, {
+  const res = await fetchApi("/api/voice/speak", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

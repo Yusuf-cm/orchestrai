@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CaseView, Language, Requirement } from "@waypoint/shared";
 import { AlertTriangle, ArrowLeft, Loader2, Volume2 } from "lucide-react";
@@ -39,11 +38,38 @@ export default function CasePage() {
   const [tab, setTab] = useState<TabId>("checklist");
   const [language, setLanguage] = useState<Language>("en");
   const [speaking, setSpeaking] = useState(false);
+  const autoSpoke = useRef(false);
 
   const { data: caseData, isLoading, isError } = useQuery({
     queryKey: ["case", id],
     queryFn: () => getCase(id),
   });
+
+  const readAloud = async (lang: Language = language) => {
+    setSpeaking(true);
+    try {
+      await speakCase(id, "", lang);
+    } catch {
+      toast.error("Could not play audio");
+    } finally {
+      setSpeaking(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!caseData || autoSpoke.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("speak") !== "1") return;
+    autoSpoke.current = true;
+    const lang: Language = params.get("lang") === "sw" ? "sw" : "en";
+    setLanguage(lang);
+    void readAloud(lang);
+    sessionStorage.removeItem("waypoint.autoSpeak");
+    sessionStorage.removeItem("waypoint.voiceLang");
+    // Strip the query so a refresh does not talk over the judges.
+    window.history.replaceState(null, "", `/cases/${id}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- speak once when the case first loads
+  }, [caseData, id]);
 
   const applyUpdate = (updated: CaseView) => {
     queryClient.setQueryData(["case", id], updated);
@@ -68,17 +94,6 @@ export default function CasePage() {
       toast.error(error instanceof Error ? error.message : "Upload failed"),
   });
 
-  const readAloud = async () => {
-    setSpeaking(true);
-    try {
-      await speakCase(id, "", language);
-    } catch {
-      toast.error("Could not play audio");
-    } finally {
-      setSpeaking(false);
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
@@ -92,7 +107,7 @@ export default function CasePage() {
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4 text-center">
         <p className="text-paper-700">We could not open that case.</p>
         <Button asChild variant="secondary">
-          <Link href="/">Back to your cases</Link>
+          <a href="/">Back to your cases</a>
         </Button>
       </div>
     );
@@ -113,13 +128,13 @@ export default function CasePage() {
     <div className="min-h-dvh pb-20">
       <header className="sticky top-0 z-30 border-b border-paper-200 bg-paper-50/85 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between gap-3 px-4">
-          <Link
+          <a
             href="/"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-paper-600 hover:text-forest-700"
           >
             <ArrowLeft className="h-4 w-4" />
             Cases
-          </Link>
+          </a>
 
           <div className="flex items-center gap-2">
             <div className="flex rounded-lg border border-paper-200 bg-white p-0.5">
@@ -139,7 +154,7 @@ export default function CasePage() {
                 </button>
               ))}
             </div>
-            <Button size="sm" variant="secondary" onClick={readAloud} loading={speaking}>
+            <Button size="sm" variant="secondary" onClick={() => void readAloud()} loading={speaking}>
               {!speaking && <Volume2 className="h-3.5 w-3.5" />}
               Listen
             </Button>

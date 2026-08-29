@@ -2,47 +2,152 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Square, Loader2 } from "lucide-react";
-import { transcribeAudio } from "@/lib/api";
+import type { Language } from "@waypoint/shared";
+import { transcribeAudio, voiceStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type Phase = "idle" | "recording" | "transcribing" | "unsupported";
 
+type BrowserSpeech = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((event: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+};
+
+function speechCtor(): (new () => BrowserSpeech) | null {
+  if (typeof window === "undefined") return null;
+  const w = window as Window & {
+    SpeechRecognition?: new () => BrowserSpeech;
+    webkitSpeechRecognition?: new () => BrowserSpeech;
+  };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
+function guessLanguage(text: string): Language {
+  return /kitambulisho|nimepoteza|nahitaji|maumivu|siku|wiki|mwezi/i.test(text) ? "sw" : "en";
+}
+
 /**
- * Voice is the primary way into Waypoint. Someone standing outside a Huduma
- * Centre can describe their problem out loud instead of typing it, in English
- * or Kiswahili, and the recording is transcribed server-side by ElevenLabs.
+ * Voice is the primary way into Waypoint. ElevenLabs Scribe is used when the
+ * API key is present; otherwise the browser's own speech recognition runs so
+ * the microphone never disappears from the demo.
  */
 export function VoiceCapture({
   onTranscript,
   onError,
   disabled,
 }: {
-  onTranscript: (text: string) => void;
+  onTranscript: (text: string, language?: Language) => void;
   onError?: (message: string) => void;
   disabled?: boolean;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [seconds, setSeconds] = useState(0);
+  const [scribe, setScribe] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const speechRef = useRef<BrowserSpeech | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const speechTextRef = useRef("");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && !navigator.mediaDevices?.getUserMedia) {
-      setPhase("unsupported");
-    }
+    const Ctor = speechCtor();
+    const hasMic = typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia);
+    if (!hasMic && !Ctor) setPhase("unsupported");
+
+    void voiceStatus().then((status) => setScribe(status.configured));
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       recorderRef.current?.stream.getTracks().forEach((t) => t.stop());
+      speechRef.current?.abort();
     };
   }, []);
 
-  const stop = useCallback(() => {
-    recorderRef.current?.stop();
-    if (timerRef.current) clearInterval(timerRef.current);
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const startTimer = useCallback((onCap: () => void) => {
+    setSeconds(0);
+    timerRef.current = setInterval(() => {
+      setSeconds((s) => {
+        if (s >= 29) {
+          onCap();
+          return s;
+        }
+        return s + 1;
+      });
+    }, 1000);
   }, []);
 
-  const start = useCallback(async () => {
+  const stopSpeech = useCallback(() => {
+    speechRef.current?.stop();
+    clearTimer();
+  }, []);
+
+  const stopRecorder = useCallback(() => {
+    recorderRef.current?.stop();
+    clearTimer();
+  }, []);
+
+  const startSpeech = useCallback(() => {
+    const Ctor = speechCtor();
+    if (!Ctor) {
+      onError?.("This browser cannot listen. Type your request instead.");
+      return;
+    }
+
+    const rec = new Ctor();
+    rec.lang = "en-KE";
+    rec.continuous = true;
+    rec.interimResults = true;
+    speechTextRef.current = "";
+
+    rec.onresult = (event) => {
+      let text = "";
+      for (let i = 0; i < event.results.length; i++) {
+        text += event.results[i][0].transcript;
+      }
+      speechTextRef.current = text.trim();
+    };
+
+    rec.onerror = (event) => {
+      if (event.error === "aborted" || event.error === "no-speech") return;
+      onError?.(
+        event.error === "not-allowed"
+          ? "Microphone access was blocked. You can type your request instead."
+          : "Could not hear that. Try again or type instead."
+      );
+      setPhase("idle");
+      clearTimer();
+    };
+
+    rec.onend = () => {
+      const text = speechTextRef.current;
+      setPhase("idle");
+      setSeconds(0);
+      speechRef.current = null;
+      if (text) onTranscript(text, guessLanguage(text));
+      else onError?.("Nothing was picked up. Try again or type instead.");
+    };
+
+    speechRef.current = rec;
+    rec.start();
+    setPhase("recording");
+    startTimer(stopSpeech);
+  }, [onError, onTranscript, startTimer, stopSpeech]);
+
+  const startScribe = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
@@ -62,39 +167,35 @@ export function VoiceCapture({
             onError?.("That was too short to hear. Hold the button and speak.");
             return;
           }
-          const text = await transcribeAudio(blob);
-          if (text) onTranscript(text);
+          const { text, language } = await transcribeAudio(blob);
+          if (text) onTranscript(text, language);
           else onError?.("Nothing was picked up. Try again or type instead.");
-        } catch (err) {
-          onError?.(
-            err instanceof Error ? err.message : "Could not transcribe. Type your request instead."
-          );
-        } finally {
           setPhase("idle");
           setSeconds(0);
+        } catch {
+          // Key missing or Scribe unreachable — switch to on-device listening.
+          startSpeech();
         }
       };
 
       recorderRef.current = recorder;
       recorder.start();
       setPhase("recording");
-      setSeconds(0);
-
-      timerRef.current = setInterval(() => {
-        setSeconds((s) => {
-          // Cap recordings so a forgotten button does not upload minutes of audio.
-          if (s >= 29) {
-            stop();
-            return s;
-          }
-          return s + 1;
-        });
-      }, 1000);
+      startTimer(stopRecorder);
     } catch {
-      onError?.("Microphone access was blocked. You can type your request instead.");
-      setPhase("idle");
+      startSpeech();
     }
-  }, [onError, onTranscript, stop]);
+  }, [onError, onTranscript, startSpeech, startTimer, stopRecorder]);
+
+  const start = useCallback(() => {
+    if (scribe && navigator.mediaDevices?.getUserMedia) void startScribe();
+    else startSpeech();
+  }, [scribe, startScribe, startSpeech]);
+
+  const stop = useCallback(() => {
+    if (recorderRef.current && recorderRef.current.state !== "inactive") stopRecorder();
+    else stopSpeech();
+  }, [stopRecorder, stopSpeech]);
 
   if (phase === "unsupported") return null;
 

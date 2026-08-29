@@ -11,10 +11,12 @@ services:
       cp backend/prisma/schema.postgresql.prisma backend/prisma/schema.prisma &&
       npx prisma generate --schema backend/prisma/schema.prisma &&
       npm run build -w backend &&
-      npx prisma db push --schema backend/prisma/schema.prisma --skip-generate
+      npx prisma db push --schema backend/prisma/schema.prisma --skip-generate --accept-data-loss
     startCommand: npm run start -w backend
     healthCheckPath: /health
     envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: NODE_ENV
         value: production
       - key: PORT
@@ -23,15 +25,21 @@ services:
         fromDatabase:
           name: waypoint-db
           property: connectionString
-      # Must match the frontend origin exactly, with no trailing slash.
+      # The frontend origin. Supports a wildcard subdomain, so
+      # https://*.onrender.com survives Render's generated service suffixes.
       - key: CORS_ORIGIN
-        sync: false
+        value: https://*.onrender.com
       - key: OPENAI_API_KEY
         sync: false
       - key: ELEVENLABS_API_KEY
         sync: false
       - key: ELEVENLABS_VOICE_ID
         value: 21m00Tcm4TlvDq8ikWAM
+      # Same speaker; eleven_v3 is what actually pronounces Kiswahili.
+      - key: ELEVENLABS_VOICE_ID_SW
+        value: 21m00Tcm4TlvDq8ikWAM
+      - key: VOICE_CACHE_DIR
+        value: /tmp/waypoint-voice
 
   - type: web
     name: waypoint-web
@@ -45,13 +53,18 @@ services:
       npm run build -w frontend
     startCommand: npm run start -w frontend
     envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 43123
-      # Inlined at build time, so changing this requires a rebuild.
+      # The real API host. Render appends a suffix to the service name, so
+      # https://waypoint-api.onrender.com 404s. This is inlined at build time.
       - key: NEXT_PUBLIC_API_URL
-        sync: false
+        value: https://waypoint-api-xh6v.onrender.com
+      - key: API_URL
+        value: https://waypoint-api-xh6v.onrender.com
 
 databases:
   - name: waypoint-db

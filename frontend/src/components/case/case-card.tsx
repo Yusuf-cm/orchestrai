@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { CaseView } from "@waypoint/shared";
 import { ChevronRight, Landmark, HeartPulse } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -10,7 +9,7 @@ export function CaseCard({ caseData }: { caseData: CaseView }) {
   const Icon = isHealth ? HeartPulse : Landmark;
 
   return (
-    <Link href={`/cases/${caseData.id}`} className="block">
+    <a href={`/cases/${caseData.id}`} className="block">
       <Card interactive className="p-4">
         <div className="flex items-start gap-3">
           <div
@@ -49,6 +48,6 @@ export function CaseCard({ caseData }: { caseData: CaseView }) {
           </div>
         </div>
       </Card>
-    </Link>
+    </a>
   );
 }

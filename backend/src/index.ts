@@ -10,6 +10,7 @@ import { voiceRouter } from './routes/voice';
 import { sessionRouter } from './routes/session';
 import { isVoiceConfigured } from './services/voice/elevenlabs';
 import { isAiConfigured } from './services/orchestrator';
+import { isOriginAllowed, parseAllowedOrigins } from './lib/cors';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '4000', 10);
@@ -28,16 +29,21 @@ if (errors.length > 0) {
 }
 console.log(`Loaded ${loaded} workflows and ${listAdapters().length} adapters`);
 
-const allowedOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:43123,http://127.0.0.1:43123')
-  .split(',')
-  .map((o) => o.trim())
-  .filter(Boolean);
+const allowedOrigins = parseAllowedOrigins(
+  process.env.CORS_ORIGIN ?? 'http://localhost:43123,http://127.0.0.1:43123'
+);
 
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-      callback(new Error(`Origin ${origin} is not allowed`));
+      // Same-origin and server-to-server requests carry no Origin header.
+      if (!origin || isOriginAllowed(origin, allowedOrigins)) return callback(null, true);
+      // Reject without throwing: an exception here surfaces as a 500 and hides
+      // the real cause, which is almost always a misconfigured CORS_ORIGIN.
+      console.warn(
+        `[cors] blocked ${origin}. CORS_ORIGIN currently allows: ${allowedOrigins.join(', ') || '(nothing)'}`
+      );
+      callback(null, false);
     },
     credentials: true,
   })
@@ -47,7 +53,7 @@ app.use(express.json({ limit: '1mb' }));
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
-    version: '0.2.0',
+    version: '0.2.2',
     timestamp: new Date().toISOString(),
     workflows: listWorkflows().map((w) => w.id),
     adapters: listAdapters().map((a) => a.id),
@@ -55,6 +61,8 @@ app.get('/health', (_req, res) => {
       languageModel: isAiConfigured(),
       voice: isVoiceConfigured(),
     },
+    // Surfaced so a misconfigured deployment is diagnosable without log access.
+    allowedOrigins,
   });
 });
 
