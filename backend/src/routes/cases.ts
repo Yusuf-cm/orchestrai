@@ -109,7 +109,7 @@ casesRouter.post('/:id/documents', upload.single('file'), async (req: AuthedRequ
     if (!req.file) {
       return res.status(400).json({ error: 'Attach a file to upload.', code: 'NO_FILE' });
     }
-    const view = await uploadArtifact(caseIdOf(req), req.file, req.body?.requirementId);
+    const view = await uploadArtifact(caseIdOf(req), req.file, (req.body?.requirementId as string) ?? undefined);
     res.status(201).json(view);
   } catch (err) {
     handleError(res, err);
