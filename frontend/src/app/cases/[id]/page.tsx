@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -39,11 +39,38 @@ export default function CasePage() {
   const [tab, setTab] = useState<TabId>("checklist");
   const [language, setLanguage] = useState<Language>("en");
   const [speaking, setSpeaking] = useState(false);
+  const autoSpoke = useRef(false);
 
   const { data: caseData, isLoading, isError } = useQuery({
     queryKey: ["case", id],
     queryFn: () => getCase(id),
   });
+
+  const readAloud = async (lang: Language = language) => {
+    setSpeaking(true);
+    try {
+      await speakCase(id, "", lang);
+    } catch {
+      toast.error("Could not play audio");
+    } finally {
+      setSpeaking(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!caseData || autoSpoke.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("speak") !== "1") return;
+    autoSpoke.current = true;
+    const lang: Language = params.get("lang") === "sw" ? "sw" : "en";
+    setLanguage(lang);
+    void readAloud(lang);
+    sessionStorage.removeItem("waypoint.autoSpeak");
+    sessionStorage.removeItem("waypoint.voiceLang");
+    // Strip the query so a refresh does not talk over the judges.
+    window.history.replaceState(null, "", `/cases/${id}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- speak once when the case first loads
+  }, [caseData, id]);
 
   const applyUpdate = (updated: CaseView) => {
     queryClient.setQueryData(["case", id], updated);
@@ -67,17 +94,6 @@ export default function CasePage() {
     onError: (error) =>
       toast.error(error instanceof Error ? error.message : "Upload failed"),
   });
-
-  const readAloud = async () => {
-    setSpeaking(true);
-    try {
-      await speakCase(id, "", language);
-    } catch {
-      toast.error("Could not play audio");
-    } finally {
-      setSpeaking(false);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -139,7 +155,7 @@ export default function CasePage() {
                 </button>
               ))}
             </div>
-            <Button size="sm" variant="secondary" onClick={readAloud} loading={speaking}>
+            <Button size="sm" variant="secondary" onClick={() => void readAloud()} loading={speaking}>
               {!speaking && <Volume2 className="h-3.5 w-3.5" />}
               Listen
             </Button>

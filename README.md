@@ -90,7 +90,7 @@ Both are optional. Waypoint runs fully without them.
 | Variable | Effect when absent |
 |---|---|
 | `OPENAI_API_KEY` | Keyword classification handles intent; explanations come from case data |
-| `ELEVENLABS_API_KEY` | Voice input is unavailable; playback falls back to on-device speech |
+| `ELEVENLABS_API_KEY` | Voice input is hidden; playback falls back to on-device speech. Paste this on **waypoint-api** to turn the mic on. |
 
 ### Tests
 

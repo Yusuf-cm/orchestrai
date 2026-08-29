@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, Square, Loader2 } from "lucide-react";
+import type { Language } from "@waypoint/shared";
 import { transcribeAudio } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +18,7 @@ export function VoiceCapture({
   onError,
   disabled,
 }: {
-  onTranscript: (text: string) => void;
+  onTranscript: (text: string, language?: Language) => void;
   onError?: (message: string) => void;
   disabled?: boolean;
 }) {
@@ -62,8 +63,8 @@ export function VoiceCapture({
             onError?.("That was too short to hear. Hold the button and speak.");
             return;
           }
-          const text = await transcribeAudio(blob);
-          if (text) onTranscript(text);
+          const { text, language } = await transcribeAudio(blob);
+          if (text) onTranscript(text, language);
           else onError?.("Nothing was picked up. Try again or type instead.");
         } catch (err) {
           onError?.(

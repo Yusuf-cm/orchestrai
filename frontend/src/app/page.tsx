@@ -41,7 +41,13 @@ export default function HomePage() {
     mutationFn: startCase,
     onSuccess: async (created) => {
       await queryClient.invalidateQueries({ queryKey: ["cases"] });
-      router.push(`/cases/${created.id}`);
+      const speak = sessionStorage.getItem("waypoint.autoSpeak") === "1";
+      const lang = sessionStorage.getItem("waypoint.voiceLang");
+      const params = new URLSearchParams();
+      if (speak) params.set("speak", "1");
+      if (lang) params.set("lang", lang);
+      const qs = params.toString();
+      router.push(`/cases/${created.id}${qs ? `?${qs}` : ""}`);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Could not start that case");
@@ -76,7 +82,11 @@ export default function HomePage() {
           {showVoice ? (
             <div className="flex flex-col items-center">
               <VoiceCapture
-                onTranscript={submit}
+                onTranscript={(transcript, language) => {
+                  sessionStorage.setItem("waypoint.autoSpeak", "1");
+                  if (language) sessionStorage.setItem("waypoint.voiceLang", language);
+                  submit(transcript);
+                }}
                 onError={(message) => toast.error(message)}
                 disabled={create.isPending}
               />

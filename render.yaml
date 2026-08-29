@@ -33,6 +33,11 @@ services:
         sync: false
       - key: ELEVENLABS_VOICE_ID
         value: 21m00Tcm4TlvDq8ikWAM
+      # Same speaker; eleven_v3 is what actually pronounces Kiswahili.
+      - key: ELEVENLABS_VOICE_ID_SW
+        value: 21m00Tcm4TlvDq8ikWAM
+      - key: VOICE_CACHE_DIR
+        value: /tmp/waypoint-voice
 
   - type: web
     name: waypoint-web

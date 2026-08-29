@@ -142,7 +142,9 @@ export async function voiceStatus(): Promise<{ configured: boolean }> {
 }
 
 /** Sends a recording to ElevenLabs Scribe and returns the transcript. */
-export async function transcribeAudio(blob: Blob): Promise<string> {
+export async function transcribeAudio(
+  blob: Blob
+): Promise<{ text: string; language?: Language }> {
   const token = await ensureSession();
   const form = new FormData();
   form.append("audio", blob, "recording.webm");
@@ -156,8 +158,7 @@ export async function transcribeAudio(blob: Blob): Promise<string> {
     const body = await res.json().catch(() => ({}));
     throw new ApiError(body.error ?? "Could not transcribe audio", body.code, res.status);
   }
-  const { text } = (await res.json()) as { text: string };
-  return text;
+  return res.json() as Promise<{ text: string; language?: Language }>;
 }
 
 /**

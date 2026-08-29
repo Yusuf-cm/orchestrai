@@ -53,7 +53,7 @@ app.use(express.json({ limit: '1mb' }));
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
-    version: '0.2.1',
+    version: '0.2.2',
     timestamp: new Date().toISOString(),
     workflows: listWorkflows().map((w) => w.id),
     adapters: listAdapters().map((a) => a.id),

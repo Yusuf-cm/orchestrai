@@ -91,18 +91,28 @@ Then load the frontend once. A cold start in front of an audience reads as a bro
 
 ## ElevenLabs
 
-1. Create an account at [elevenlabs.io](https://elevenlabs.io).
-2. Profile → API Keys → copy the key.
-3. Set `ELEVENLABS_API_KEY` on the API service.
+Voice is already wired. The live API reports `"voice": false` until this key is set — I cannot put it on Render from here.
 
-Two capabilities are used:
+1. Create a key at [elevenlabs.io/app/developers/api-keys](https://elevenlabs.io/app/developers/api-keys) (free tier is enough for the demo).
+2. Render dashboard → **waypoint-api** → **Environment** → `ELEVENLABS_API_KEY` → paste → **Save Changes**. Saving restarts the API.
+3. Wait until health shows voice on:
 
-- **Scribe** transcribes recordings. It handles sentences that mix English and Kiswahili, which is how people actually speak.
-- **Text to speech** reads the next action back. Turbo for English, Multilingual for Kiswahili.
+```bash
+curl https://waypoint-api-xh6v.onrender.com/health
+```
 
-Audio is cached by a hash of text, voice, and model, so repeated playback of the same summary costs one generation.
+You want `"voice": true` inside `capabilities`. The frontend does not need a rebuild; the mic appears on the next refresh.
 
-Without the key the app still works: voice input is hidden, and playback uses the browser's speech synthesis.
+4. Optional locally: put the same key in `backend/.env` as `ELEVENLABS_API_KEY=` and restart `npm run dev`.
+
+What the key turns on:
+
+- **Scribe v2** transcribes the home-screen recording. Kenyan terms (kitambulisho, Huduma, eCitizen, SHA, M-Pesa) are passed as keyterms so mixed English/Kiswahili still lands.
+- **Text to speech** reads the next action when a spoken case opens, and whenever you tap **Listen**. English uses Flash; Kiswahili uses v3, which is the model that actually speaks Swahili.
+
+Audio is cached by text + voice + model. A cache miss on Render still returns the clip; a disk write failure does not.
+
+Without the key the app still works: the home screen stays on typing, and **Listen** uses the browser's speech synthesis.
 
 ---
 
