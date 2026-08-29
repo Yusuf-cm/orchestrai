@@ -31,6 +31,13 @@ services:
         value: https://*.onrender.com
       - key: OPENAI_API_KEY
         sync: false
+      # Optional. Point at an OpenAI-compatible endpoint (e.g. NVIDIA NIM)
+      # instead of OpenAI itself. Leave unset to use OpenAI directly.
+      - key: OPENAI_BASE_URL
+        sync: false
+      # Optional. Defaults to gpt-4o-mini. Must match whatever OPENAI_BASE_URL serves.
+      - key: OPENAI_MODEL
+        sync: false
       - key: ELEVENLABS_API_KEY
         sync: false
       - key: ELEVENLABS_VOICE_ID
