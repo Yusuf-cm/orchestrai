@@ -65,7 +65,7 @@ Write an adapter implementing `ServiceAdapter`, add connector data, add a workfl
 
 ### Requirements
 
-Node.js 20+, npm 10+.
+Node.js 22, npm 10+.
 
 ### Setup
 

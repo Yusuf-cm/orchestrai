@@ -12,7 +12,21 @@ import { NextRequest } from "next/server";
  * Next.js standalone server truncated JSON (session payloads arrived at 103
  * bytes instead of 128), which made `res.json()` throw in the browser.
  */
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000").replace(/\/$/, "");
+/**
+ * Render named the service `waypoint-api` in render.yaml, then appended
+ * `-xh6v`. The unsuffixed hostname 404s. If the frontend was built with that
+ * wrong URL, rewrite it so the proxy still reaches the live API.
+ */
+function resolveApiUrl(): string {
+  const live = "https://waypoint-api-xh6v.onrender.com";
+  let url = (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+  if (!url || url === "https://waypoint-api.onrender.com") {
+    url = process.env.NODE_ENV === "production" ? live : "http://127.0.0.1:4000";
+  }
+  return url;
+}
+
+const API_URL = resolveApiUrl();
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -92,3 +106,4 @@ export const POST = proxy;
 export const PUT = proxy;
 export const PATCH = proxy;
 export const DELETE = proxy;
+export const OPTIONS = proxy;

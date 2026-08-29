@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CaseView, Language, Requirement } from "@waypoint/shared";
 import { AlertTriangle, ArrowLeft, Loader2, Volume2 } from "lucide-react";
@@ -108,7 +107,7 @@ export default function CasePage() {
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4 text-center">
         <p className="text-paper-700">We could not open that case.</p>
         <Button asChild variant="secondary">
-          <Link href="/">Back to your cases</Link>
+          <a href="/">Back to your cases</a>
         </Button>
       </div>
     );
@@ -129,13 +128,13 @@ export default function CasePage() {
     <div className="min-h-dvh pb-20">
       <header className="sticky top-0 z-30 border-b border-paper-200 bg-paper-50/85 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between gap-3 px-4">
-          <Link
+          <a
             href="/"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-paper-600 hover:text-forest-700"
           >
             <ArrowLeft className="h-4 w-4" />
             Cases
-          </Link>
+          </a>
 
           <div className="flex items-center gap-2">
             <div className="flex rounded-lg border border-paper-200 bg-white p-0.5">

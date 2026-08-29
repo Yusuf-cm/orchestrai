@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Keyboard } from "lucide-react";
 import { toast } from "sonner";
@@ -19,7 +18,6 @@ const EXAMPLES = [
 ];
 
 export default function HomePage() {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [text, setText] = useState("");
   const [typing, setTyping] = useState(false);
@@ -47,7 +45,9 @@ export default function HomePage() {
       if (speak) params.set("speak", "1");
       if (lang) params.set("lang", lang);
       const qs = params.toString();
-      router.push(`/cases/${created.id}${qs ? `?${qs}` : ""}`);
+      // Full load, not client navigation: RSC payload fetches were showing up
+      // in the UI as "Failed to fetch" on Render.
+      window.location.assign(`/cases/${created.id}${qs ? `?${qs}` : ""}`);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Could not start that case");

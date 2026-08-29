@@ -8,7 +8,7 @@
 | API | https://waypoint-api-xh6v.onrender.com |
 | Health | https://waypoint-api-xh6v.onrender.com/health |
 
-The browser talks to the app origin only (`/backend/...`). Next.js proxies those calls to the API and strips the `Origin` header, so a CORS mismatch on the API cannot blank the UI.
+The browser talks to the app origin only (`/backend/...`). It must not call `https://waypoint-api.onrender.com` — that hostname does not exist (Render generated `waypoint-api-xh6v`). A stale frontend build with that URL shows up as a CORS error on session and transcribe.
 
 A healthy API reports `"version": "0.2.1"` and an `allowedOrigins` array. `"version": "0.2.0"` without `allowedOrigins` is an older deploy: the proxy still works after the **frontend** is on this commit, but set `CORS_ORIGIN` and redeploy the API anyway.
 

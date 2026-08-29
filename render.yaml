@@ -59,9 +59,12 @@ services:
         value: production
       - key: PORT
         value: 43123
-      # Inlined at build time, so changing this requires a rebuild.
+      # The real API host. Render appends a suffix to the service name, so
+      # https://waypoint-api.onrender.com 404s. This is inlined at build time.
       - key: NEXT_PUBLIC_API_URL
-        sync: false
+        value: https://waypoint-api-xh6v.onrender.com
+      - key: API_URL
+        value: https://waypoint-api-xh6v.onrender.com
 
 databases:
   - name: waypoint-db
