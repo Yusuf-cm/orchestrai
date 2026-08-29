@@ -13,8 +13,13 @@ import type { CaseData, Domain, IntentResult, Language } from '@waypoint/shared'
  */
 
 const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  ? new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      baseURL: process.env.OPENAI_BASE_URL || undefined,
+    })
   : null;
+
+const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 export function isAiConfigured(): boolean {
   return openai !== null;
@@ -117,7 +122,7 @@ export async function classifyIntentWithAI(utterance: string): Promise<IntentRes
 
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: MODEL,
       temperature: 0,
       response_format: { type: 'json_object' },
       messages: [
@@ -171,7 +176,7 @@ export async function generateClarification(
 
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: MODEL,
       temperature: 0.3,
       max_tokens: 220,
       messages: [
