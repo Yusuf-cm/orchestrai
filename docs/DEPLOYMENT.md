@@ -40,7 +40,7 @@ curl -I https://waypoint-web-bw9d.onrender.com
 1. Push the repository to GitHub.
 2. Render dashboard → **New** → **Blueprint** → select the repository. Render reads `render.yaml`.
 3. Set the variables below. Values marked `sync: false` must be entered by hand.
-4. Deploy. The API build swaps in the PostgreSQL schema and runs `prisma db push`.
+4. Deploy. The API build swaps in the PostgreSQL schema and runs `prisma db push --accept-data-loss`. That flag is required because early deploys left a `tasks` column on `Case` that the current schema does not use. Demo rows in that leftover column are discarded; live cases themselves are kept.
 5. Confirm:
 
 ```bash

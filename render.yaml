@@ -11,10 +11,12 @@ services:
       cp backend/prisma/schema.postgresql.prisma backend/prisma/schema.prisma &&
       npx prisma generate --schema backend/prisma/schema.prisma &&
       npm run build -w backend &&
-      npx prisma db push --schema backend/prisma/schema.prisma --skip-generate
+      npx prisma db push --schema backend/prisma/schema.prisma --skip-generate --accept-data-loss
     startCommand: npm run start -w backend
     healthCheckPath: /health
     envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: NODE_ENV
         value: production
       - key: PORT
@@ -51,6 +53,8 @@ services:
       npm run build -w frontend
     startCommand: npm run start -w frontend
     envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: NODE_ENV
         value: production
       - key: PORT
