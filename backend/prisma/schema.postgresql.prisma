@@ -40,7 +40,6 @@ model Case {
   requirements String   @default("[]")
   artifacts    String   @default("[]")
   appointments String   @default("[]")
-  tasks        String   @default("[]")
   evidence     String   @default("[]")
   status       String   @default("open")
   createdAt    DateTime @default(now())
@@ -62,11 +61,13 @@ model AuditEvent {
   output    String?
   success   Boolean  @default(true)
   timestamp DateTime @default(now())
+
+  @@index([caseId, timestamp])
 }
 
 model VoiceCache {
   id        String   @id @default(cuid())
-  textHash  String   @unique
+  cacheKey  String   @unique
   audioPath String
   createdAt DateTime @default(now())
 }

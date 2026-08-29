@@ -74,7 +74,7 @@ export async function speak(text: string, language: Language = 'en'): Promise<Sp
   const cacheKey = cacheKeyFor(text, language);
   ensureDir(AUDIO_DIR);
 
-  const cached = await prisma.voiceCache.findUnique({ where: { textHash: cacheKey } });
+  const cached = await prisma.voiceCache.findUnique({ where: { cacheKey } });
   if (cached && fs.existsSync(cached.audioPath)) {
     return {
       audio: fs.readFileSync(cached.audioPath),
@@ -115,8 +115,8 @@ export async function speak(text: string, language: Language = 'en'): Promise<Sp
     const audioPath = path.join(AUDIO_DIR, `${cacheKey}.mp3`);
     fs.writeFileSync(audioPath, audio);
     await prisma.voiceCache.upsert({
-      where: { textHash: cacheKey },
-      create: { textHash: cacheKey, audioPath },
+      where: { cacheKey },
+      create: { cacheKey, audioPath },
       update: { audioPath },
     });
 
