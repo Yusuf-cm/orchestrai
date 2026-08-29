@@ -8,11 +8,21 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  email     String   @unique
-  createdAt DateTime @default(now())
+  email     String?   @unique
+  createdAt DateTime  @default(now())
   cases     Case[]
+  sessions  Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
 }
 
 model Case {
@@ -37,6 +47,8 @@ model Case {
   updatedAt    DateTime @updatedAt
 
   auditEvents AuditEvent[]
+
+  @@index([userId, updatedAt])
 }
 
 model AuditEvent {
