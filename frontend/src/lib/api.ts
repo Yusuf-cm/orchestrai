@@ -1,6 +1,14 @@
 import type { CaseView, Language } from "@waypoint/shared";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+/**
+ * In the browser, every call goes through the Next.js `/backend` proxy so a
+ * CORS mismatch on the separately hosted API cannot take the demo down.
+ * Server-side code still talks to the API directly.
+ */
+function apiBase(): string {
+  if (typeof window !== "undefined") return "/backend";
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+}
 const TOKEN_KEY = "waypoint.session";
 
 function readToken(): string | null {
@@ -20,7 +28,7 @@ async function ensureSession(): Promise<string> {
   const existing = readToken();
   if (existing) return existing;
 
-  const res = await fetch(`${API_URL}/api/session`, {
+  const res = await fetch(`${apiBase()}/api/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
@@ -40,7 +48,7 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit, retry = true): Promise<T> {
   const token = await ensureSession();
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${apiBase()}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -104,7 +112,7 @@ export async function uploadDocument(
   form.append("file", file);
   if (requirementId) form.append("requirementId", requirementId);
 
-  const res = await fetch(`${API_URL}/api/cases/${caseId}/documents`, {
+  const res = await fetch(`${apiBase()}/api/cases/${caseId}/documents`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: form,
@@ -127,7 +135,7 @@ export function askQuestion(
 }
 
 export async function voiceStatus(): Promise<{ configured: boolean }> {
-  const res = await fetch(`${API_URL}/api/voice/status`);
+  const res = await fetch(`${apiBase()}/api/voice/status`);
   if (!res.ok) return { configured: false };
   return res.json();
 }
@@ -138,7 +146,7 @@ export async function transcribeAudio(blob: Blob): Promise<string> {
   const form = new FormData();
   form.append("audio", blob, "recording.webm");
 
-  const res = await fetch(`${API_URL}/api/voice/transcribe`, {
+  const res = await fetch(`${apiBase()}/api/voice/transcribe`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: form,
@@ -161,7 +169,7 @@ export async function speakCase(
   language: Language = "en"
 ): Promise<HTMLAudioElement | null> {
   const token = await ensureSession();
-  const res = await fetch(`${API_URL}/api/voice/speak`, {
+  const res = await fetch(`${apiBase()}/api/voice/speak`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

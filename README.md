@@ -8,6 +8,8 @@ Waypoint takes what a person says they need, works out the institutional process
 
 Built for Kenyan government and health services, on an architecture where each new domain is a plug-in rather than a rewrite.
 
+Live demo: [waypoint-web-bw9d.onrender.com](https://waypoint-web-bw9d.onrender.com) — pitch script in `docs/DEMO.md`.
+
 ---
 
 ## What it does today
@@ -96,7 +98,7 @@ Both are optional. Waypoint runs fully without them.
 npm run test:milestone
 ```
 
-24 tests covering the condition grammar, workflow validation, one-click-one-step advancement, readiness, emergency triage in both languages, execution authorisation, and intent routing.
+Tests covering the condition grammar, workflow validation, CORS origin matching, one-click-one-step advancement, readiness, emergency triage in both languages, execution authorisation, and intent routing.
 
 ---
 
@@ -119,7 +121,8 @@ waypoint/
 │   ├── ADAPTERS.md          adding a domain
 │   ├── API.md               endpoint reference
 │   ├── WORKFLOWS.md         the condition grammar and step types
-│   └── DEPLOYMENT.md        Render and ElevenLabs
+│   ├── DEPLOYMENT.md        Render and ElevenLabs
+│   └── DEMO.md              2.5-minute pitch script
 ├── packages/shared/         types shared by both sides
 ├── backend/
 │   ├── src/adapters/        government, healthcare

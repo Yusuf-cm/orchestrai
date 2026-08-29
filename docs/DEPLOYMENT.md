@@ -1,5 +1,30 @@
 # Deployment
 
+## Live demo (Cursor Kenya Build Night)
+
+| Service | URL |
+|---|---|
+| App | https://waypoint-web-bw9d.onrender.com |
+| API | https://waypoint-api-xh6v.onrender.com |
+| Health | https://waypoint-api-xh6v.onrender.com/health |
+
+The browser talks to the app origin only (`/backend/...`). Next.js proxies those calls to the API and strips the `Origin` header, so a CORS mismatch on the API cannot blank the UI.
+
+A healthy API reports `"version": "0.2.1"` and an `allowedOrigins` array. `"version": "0.2.0"` without `allowedOrigins` is an older deploy: the proxy still works after the **frontend** is on this commit, but set `CORS_ORIGIN` and redeploy the API anyway.
+
+### If the live site still fails to start a case
+
+1. Render → **waypoint-web** → **Manual Deploy** → latest `main`.
+2. Render → **waypoint-api** → Environment → `CORS_ORIGIN` = `https://waypoint-web-bw9d.onrender.com` (no trailing slash) → **Save** → **Manual Deploy**.
+3. Optional: `ELEVENLABS_API_KEY` on **waypoint-api** for Scribe + TTS in front of judges.
+
+Wake both services before presenting. Free-tier cold start is 30–60 seconds:
+
+```bash
+curl https://waypoint-api-xh6v.onrender.com/health
+curl -I https://waypoint-web-bw9d.onrender.com
+```
+
 ## Render
 
 `render.yaml` at the repository root defines both services and the database.
@@ -19,31 +44,31 @@
 5. Confirm:
 
 ```bash
-curl https://waypoint-api.onrender.com/health
+curl https://waypoint-api-xh6v.onrender.com/health
 ```
 
-`capabilities` in the response tells you which optional keys were picked up.
+`capabilities` in the response tells you which optional keys were picked up. After this commit you should also see `version` and `allowedOrigins`.
 
 ### Backend variables
 
 | Variable | Required | Notes |
 |---|---|---|
 | `DATABASE_URL` | Yes | Wired automatically from `waypoint-db` |
-| `CORS_ORIGIN` | Yes | The frontend URL exactly, e.g. `https://waypoint-web.onrender.com`. Comma-separated for several |
+| `CORS_ORIGIN` | Yes | Frontend origin, e.g. `https://waypoint-web-bw9d.onrender.com`. Wildcards such as `https://*.onrender.com` are supported. Comma-separated for several. The API also always allows `https://*.onrender.com` and localhost so a generated hostname cannot take the demo down. |
 | `OPENAI_API_KEY` | No | Absent means keyword classification |
 | `ELEVENLABS_API_KEY` | No | Absent disables voice input; playback falls back to the device |
 | `ELEVENLABS_VOICE_ID` | No | Defaults to Rachel |
 | `ELEVENLABS_VOICE_ID_SW` | No | A separate voice for Kiswahili if you want one |
 
-`CORS_ORIGIN` is the usual first-deploy mistake. It must match the frontend origin exactly — no trailing slash.
+Older API builds threw HTTP 500 when `Origin` did not match `CORS_ORIGIN` exactly. Current builds reject quietly (no `Access-Control-Allow-Origin`) and never 500 for that reason.
 
 ### Frontend variables
 
 | Variable | Required | Notes |
 |---|---|---|
-| `NEXT_PUBLIC_API_URL` | Yes | The API URL, e.g. `https://waypoint-api.onrender.com` |
+| `NEXT_PUBLIC_API_URL` | Yes | The API URL, e.g. `https://waypoint-api-xh6v.onrender.com` |
 
-This is inlined at build time, so changing it needs a rebuild, not a restart.
+This is inlined at **build** time. The browser does not call it directly: the Next.js `/backend` route uses it as the proxy target. Changing it still needs a frontend rebuild.
 
 ### SQLite locally, PostgreSQL on Render
 
@@ -57,7 +82,7 @@ Two schema files are kept because the provider cannot be set from an environment
 Render's free tier sleeps after inactivity and the first request can take 30–60 seconds. Before demonstrating, wake it:
 
 ```bash
-curl https://waypoint-api.onrender.com/health
+curl https://waypoint-api-xh6v.onrender.com/health
 ```
 
 Then load the frontend once. A cold start in front of an audience reads as a broken app.
@@ -86,8 +111,8 @@ Without the key the app still works: voice input is hidden, and playback uses th
 Vercel suits the Next.js side well and avoids frontend cold starts.
 
 1. Import the repository; set the root directory to `frontend`.
-2. Set `NEXT_PUBLIC_API_URL` to the Render API URL.
-3. Deploy, then add the Vercel URL to `CORS_ORIGIN` on the API and redeploy the API.
+2. Set `NEXT_PUBLIC_API_URL` to the Render API URL (`https://waypoint-api-xh6v.onrender.com`).
+3. Deploy. The browser uses `/backend` on the Next.js host, so CORS is not required for that path. Still add the Vercel origin to `CORS_ORIGIN` if anything calls the API directly.
 
 The API and database stay on Render.
 

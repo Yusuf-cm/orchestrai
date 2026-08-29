@@ -2,15 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  async rewrites() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-    return [
-      {
-        source: "/api/proxy/:path*",
-        destination: `${apiUrl}/:path*`,
-      },
-    ];
-  },
+  // Do not rewrite `/backend` here. A rewrite forwards the browser Origin
+  // header to the API, which is what made older deploys return HTTP 500.
+  // The App Router handler at `src/app/backend/[...path]/route.ts` strips it.
 };
 
 export default nextConfig;
