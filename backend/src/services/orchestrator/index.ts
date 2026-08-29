@@ -21,6 +21,16 @@ const openai = process.env.OPENAI_API_KEY
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
+// Some providers (e.g. NVIDIA's reasoning models) emit chain-of-thought
+// inline in `content` unless thinking is explicitly disabled. This is
+// ignored by providers that don't recognise it.
+const EXTRA_BODY = { chat_template_kwargs: { enable_thinking: false } };
+
+/** Strips a leaked <think>...</think> block as a backstop if a provider ignores EXTRA_BODY. */
+function stripThinking(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
+
 export function isAiConfigured(): boolean {
   return openai !== null;
 }
@@ -129,10 +139,13 @@ export async function classifyIntentWithAI(utterance: string): Promise<IntentRes
         { role: 'system', content: INTENT_SCHEMA_PROMPT },
         { role: 'user', content: utterance },
       ],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(EXTRA_BODY as any),
     });
 
-    const content = response.choices[0]?.message?.content;
-    if (!content) return keyword;
+    const rawContent = response.choices[0]?.message?.content;
+    if (!rawContent) return keyword;
+    const content = stripThinking(rawContent);
 
     const parsed = JSON.parse(content) as Partial<IntentResult>;
     if (!parsed.classifiedIntent || parsed.classifiedIntent === 'unknown') return keyword;
@@ -201,10 +214,14 @@ export async function generateClarification(
           ].join('\n'),
         },
       ],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(EXTRA_BODY as any),
     });
 
-    const reply = response.choices[0]?.message?.content?.trim();
-    if (!reply) throw new Error('empty completion');
+    const rawReply = response.choices[0]?.message?.content?.trim();
+    if (!rawReply) throw new Error('empty completion');
+    const reply = stripThinking(rawReply);
+    if (!reply) throw new Error('empty completion after stripping reasoning');
     return { reply, source: 'ai' };
   } catch (err) {
     console.warn('[orchestrator] clarification failed:', err instanceof Error ? err.message : err);
