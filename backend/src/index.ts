@@ -30,14 +30,38 @@ console.log(`Loaded ${loaded} workflows and ${listAdapters().length} adapters`);
 
 const allowedOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:43123,http://127.0.0.1:43123')
   .split(',')
-  .map((o) => o.trim())
+  .map((o) => o.trim().replace(/\/$/, ''))
   .filter(Boolean);
+
+/**
+ * Matches an origin against the allow-list. Entries may use a wildcard for the
+ * subdomain, as in `https://*.onrender.com`, because hosting platforms append
+ * generated suffixes to service names and a hardcoded hostname breaks on every
+ * redeploy.
+ */
+function isOriginAllowed(origin: string): boolean {
+  return allowedOrigins.some((allowed) => {
+    if (allowed === origin) return true;
+    if (!allowed.includes('*')) return false;
+    const pattern = new RegExp(
+      `^${allowed.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[a-z0-9-]+')}$`,
+      'i'
+    );
+    return pattern.test(origin);
+  });
+}
 
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-      callback(new Error(`Origin ${origin} is not allowed`));
+      // Same-origin and server-to-server requests carry no Origin header.
+      if (!origin || isOriginAllowed(origin)) return callback(null, true);
+      // Reject without throwing: an exception here surfaces as a 500 and hides
+      // the real cause, which is almost always a misconfigured CORS_ORIGIN.
+      console.warn(
+        `[cors] blocked ${origin}. CORS_ORIGIN currently allows: ${allowedOrigins.join(', ') || '(nothing)'}`
+      );
+      callback(null, false);
     },
     credentials: true,
   })
@@ -55,6 +79,8 @@ app.get('/health', (_req, res) => {
       languageModel: isAiConfigured(),
       voice: isVoiceConfigured(),
     },
+    // Surfaced so a misconfigured deployment is diagnosable without log access.
+    allowedOrigins,
   });
 });
 

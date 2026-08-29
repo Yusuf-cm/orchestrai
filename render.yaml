@@ -23,9 +23,10 @@ services:
         fromDatabase:
           name: waypoint-db
           property: connectionString
-      # Must match the frontend origin exactly, with no trailing slash.
+      # The frontend origin. Supports a wildcard subdomain, so
+      # https://*.onrender.com survives Render's generated service suffixes.
       - key: CORS_ORIGIN
-        sync: false
+        value: https://*.onrender.com
       - key: OPENAI_API_KEY
         sync: false
       - key: ELEVENLABS_API_KEY
